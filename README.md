@@ -1,2 +1,2 @@
-# LIT
-Lightweight Interpretable Transcription pipeline of coding and non-coding DNA sequences into amino acids
+# LIGAND
+Locus Inference and Generative Adversarial Network for gRNA Design
