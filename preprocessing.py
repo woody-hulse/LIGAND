@@ -8,7 +8,11 @@ import pandas as pd
 
 from Bio import SeqIO
 
-GENOME_SEQUENCES_PATH = 'GRCh37_latest_genomic.fna'
+GENOME_SEQUENCES_PATH = 'GRCh37_latest_genomic.fna'     # https://www.ncbi.nlm.nih.gov/genome/guide/human/
+H3K4ME3_PATH = ""
+RRBS_PATH = ""
+DNASE_PATH = ""
+CTCF_PATH = ""
 DATA_PATH = 'hg_guide_info.csv'
 
 GENOME_SEQUENCES = {}
@@ -25,11 +29,11 @@ def read_genome(df, path='GRCh37_latest_genomic.fna'):
     debug_print(['dna sequence imported from', path])
 
 
-def fetch_genome_sequence(chromosome, start, end, a=12):
+def fetch_genome_sequence(chromosome, start, end, a=0):
     chromosome_id = f'NC_0000{chromosome}'
     genome_sequence = GENOME_SEQUENCES.get(chromosome_id)
     if genome_sequence:
-        return str(genome_sequence[start - a:end + a]) # start - 1
+        return str(genome_sequence[start - a:end + a + 1]) # start - 1
     else:
         raise ValueError(f'chromosome {chromosome_id} not found in the genome file.')
 
@@ -93,9 +97,17 @@ def train_val_test_split(data, train=0.7, val=0.2, test=0.1):
            data[(train + val)*length:(train + val + test)*length]
 
 
+def load_data(seqs_path='seqs.npy', grna_path='grna.npy'):
+    debug_print(['loading preprocessed data'])
+    seqs, grna = np.load(seqs_path), np.load(grna_path)
+    debug_print([
+        'data shape:', 
+        '\n                  DNA:  ', seqs.shape, 
+        '\n                  gRNA: ', grna.shape])
+    return seqs, grna
+
 
 def get_train_test(df, length=1e4):
-
     debug_print(['loading genomic data from', GENOME_SEQUENCES_PATH])
     for record in SeqIO.parse(GENOME_SEQUENCES_PATH, 'fasta'):
         GENOME_SEQUENCES[record.id.split('.')[0]] = record.seq
@@ -121,11 +133,11 @@ def get_train_test(df, length=1e4):
         except:
             print(f'chromosome {chromosome} not found in the genome file.')
     grna = ohe_bases(grna_list)
-    seqs = tokenize_bases(seqs_list)
+    seqs = ohe_bases(seqs_list)
     debug_print([
-        'output data shape:', 
-        '\n                      DNA:  ', seqs.shape, 
-        '\n                      gRNA: ', grna.shape])
+        'data shape:', 
+        '\n                  DNA:  ', seqs.shape, 
+        '\n                  gRNA: ', grna.shape])
 
     return seqs, grna
 
