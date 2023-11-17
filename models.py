@@ -105,6 +105,29 @@ class ActorConvDeconv(tf.keras.Model):
     def predict(self, X):
         return self.call(X)
     
+    
+class ActorDense(tf.keras.Model):
+    def __init__(self, input_shape, output_shape, reg=0.01, name='actor_dense'):
+        super().__init__(name=name)
+
+        self.Layers = tf.keras.models.Sequential([
+            tf.keras.layers.Flatten(),
+            tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(reg)),
+            tf.keras.layers.Dropout(0.1),
+            tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(reg)),
+            tf.keras.layers.Dropout(0.1),
+            tf.keras.layers.Dense(output_shape[0] * 4, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(reg)),
+            tf.keras.layers.Dropout(0.1),
+            tf.keras.layers.Reshape(output_shape),
+            tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(4, activation='softmax', kernel_regularizer=tf.keras.regularizers.l2(reg)))
+        ])
+        
+    def call(self, X):
+        return self.Layers(X)
+
+    def predict(self, X):
+        return self.call(X)
+    
 
 class GuessBaseline():
     def __init__(self, Y, name="guess_baseline"):
@@ -123,13 +146,26 @@ class GuessBaseline():
         return self.call(X)
     
 
-class MeanBaseline():
-    def __init__(self, Y, name="mean_baseline"):
+class CenterBaseline():
+    def __init__(self, Y, name="center_baseline"):
         self.shape = Y.shape[1:]
         self.name = name
 
     def call(self, X):
         Y_pred = np.full((X.shape[0],) + self.shape, 1 / self.shape[1])
+        return Y_pred
+    
+    def predict(self, X):
+        return self.call(X)
+    
+    
+class MeanBaseline():
+    def __init__(self, Y, name="mean_baseline"):
+        self.pred = tf.reduce_mean(Y, axis=0)
+        self.name = name
+
+    def call(self, X):
+        Y_pred = np.array([self.pred for _ in range(X.shape[0])])
         return Y_pred
     
     def predict(self, X):
