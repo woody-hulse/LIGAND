@@ -112,14 +112,14 @@ class ActorDense(tf.keras.Model):
 
         self.Layers = tf.keras.models.Sequential([
             tf.keras.layers.Flatten(),
-            tf.keras.layers.Dense(128, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(reg)),
+            tf.keras.layers.Dense(128, activation='relu'),
             tf.keras.layers.Dropout(0.1),
-            tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(reg)),
+            tf.keras.layers.Dense(64, activation='relu'),
             tf.keras.layers.Dropout(0.1),
-            tf.keras.layers.Dense(output_shape[0] * 4, activation='relu', kernel_regularizer=tf.keras.regularizers.l2(reg)),
+            tf.keras.layers.Dense(output_shape[0] * 4, activation='relu'),
             tf.keras.layers.Dropout(0.1),
             tf.keras.layers.Reshape(output_shape),
-            tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(4, activation='softmax', kernel_regularizer=tf.keras.regularizers.l2(reg)))
+            tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(4, activation='softmax'))
         ])
         
     def call(self, X):
@@ -166,6 +166,24 @@ class MeanBaseline():
 
     def call(self, X):
         Y_pred = np.array([self.pred for _ in range(X.shape[0])])
+        return Y_pred
+    
+    def predict(self, X):
+        return self.call(X)
+    
+
+class PairBaseline():
+    def __init__(self, name="pair_baseline"):
+        self.name = name
+
+    def call(self, X):
+        Y_pred = np.zeros((X.shape[0],) + (20, 4))
+        for i in range(Y_pred.shape[0]):
+            for j in range(Y_pred.shape[1]):
+                if X[i][j][0] == 1: Y_pred[i][j][3] = 1
+                if X[i][j][1] == 1: Y_pred[i][j][2] = 1
+                if X[i][j][2] == 1: Y_pred[i][j][1] = 1
+                if X[i][j][3] == 1: Y_pred[i][j][0] = 1
         return Y_pred
     
     def predict(self, X):

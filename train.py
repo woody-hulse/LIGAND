@@ -25,7 +25,7 @@ def compute_baselines(models, X, Y):
 
 
 def train(model, X, Y, epochs, batch_size=64, validation_split=0.2, graph=True, summary=True):
-    model.compile(loss='categorical_crossentropy', optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=0.001))
+    model.compile(loss='categorical_crossentropy', optimizer=tf.keras.optimizers.legacy.Adam(), metrics=['accuracy'])
     model.build(X.shape)
     if summary: print(model.summary())
     model.fit(X, Y, batch_size=batch_size, epochs=epochs, validation_split=validation_split)
@@ -33,10 +33,11 @@ def train(model, X, Y, epochs, batch_size=64, validation_split=0.2, graph=True, 
     if graph:
         loss = model.history.history['loss'][3:]
         val_loss = model.history.history['val_loss'][3:]
-        plt.plot(loss, label='training loss')
-        plt.plot(val_loss, label='validation loss')
+        plt.plot(loss, label='training')
+        plt.plot(val_loss, label='validation')
         plt.ylabel('categorical crossentropy loss')
         plt.xlabel('epoch')
+        plt.legend()
         plt.show()
 
 def train_multiproc(model, X, Y, epochs, batch_size=16, validation_split=0.2):
@@ -82,7 +83,7 @@ def main(load_data=False):
         seqs, grna = preprocessing.load_data()
     else:
         df = preprocessing.extract_data()
-        seqs, grna = preprocessing.get_train_test(df, 1e5)
+        seqs, grna = preprocessing.get_train_test(df, 1e4)
         debug_print(['saving preprocessed data'])
         np.save('seqs.npy', seqs)
         np.save('grna.npy', grna)
@@ -98,29 +99,31 @@ def main(load_data=False):
     compute_baselines([
         GuessBaseline(grna),
         MeanBaseline(grna),
-        CenterBaseline(grna)
+        CenterBaseline(grna),
+        PairBaseline()
     ], seqs, grna)
 
     model1 = ActorTransformer1(seqs.shape[1:], grna.shape[1:], num_transformers=4, hidden_size=32)
     model2 = ActorConvDeconv(seqs.shape[1:], grna.shape[1:])
-    model = ActorDense(seqs.shape[1:], grna.shape[1:])
-    # model3 = tfm.nlp.models.TransformerDecoder(num_attention_heads=1)
+    model3 = ActorDense(seqs.shape[1:], grna.shape[1:])
+    # model4 = tfm.nlp.models.TransformerDecoder(num_attention_heads=1)
     
-    train(model, seqs, grna, 1000)
+    train(model2, seqs, grna, 100)
     # train_multiproc(model2, seqs, grna, 100)
     
-    print(model(np.array([seqs[0]])))
+    # print(model(np.array([seqs[0]])))
     
-    print(grna[0])
+    # print(grna[0])
     
     # gan = TestGAN(seqs.shape[1:], grna.shape[1:])
-    # gan.train(batched_seqs, batched_grna, 100)
-    
-    
+    # gan.train(batched_seqs, batched_grna, 10)
+
+    # debug_print(['generator loss :', 
+    #              tf.math.reduce_mean(tf.keras.losses.categorical_crossentropy(gan.generator(seqs[:100]), grna[:100])).numpy()])
     
 
 
 if __name__ == '__main__':
     os.system('clear')
 
-    main(False)
+    main(True)

@@ -9,14 +9,13 @@ import pandas as pd
 from Bio import SeqIO
 import pyBigWig
 
-GENOME_SEQUENCES_PATH = 'GRCh37_latest_genomic.fna'     # https://www.ncbi.nlm.nih.gov/genome/guide/human/
-
-H3K4ME3_PATH = "data/h3k4me.bigWig"
+H3K4ME3_PATH = "data/h3k4me.bigWig" # https://drive.google.com/drive/u/0/folders/1nycERZkXh5Qiyy8HQE3Hk0pOez_UFECw
 RRBS_PATH = "data/methyl.bigBed"
 DNASE_PATH = "data/dnase.bigWig"
 CTCF_PATH = "data/ctcf.bigWig"
 
-DATA_PATH = 'hg_guide_info.csv'
+REFERENCE_GENOME_PATH = 'data/GCF_000001405.26_GRCh38_genomic.fna' # https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_000001405.26/
+GRNA_PATH = 'data/hg_guide_info.csv' # https://www.ncbi.nlm.nih.gov/genome/guide/human/
 
 GENOME_SEQUENCES = {}
 def debug_print(statements=[], end='\n'):
@@ -27,7 +26,7 @@ def debug_print(statements=[], end='\n'):
     print(end=end)
 
 
-def read_genome(df, path='GRCh37_latest_genomic.fna'):
+def read_genome(df, path=REFERENCE_GENOME_PATH):
     tm = SeqIO.parse(path, 'fasta')
     debug_print(['dna sequence imported from', path])
 
@@ -143,9 +142,9 @@ def batch_data(data, batch_size):
 
 def train_val_test_split(data, train=0.7, val=0.2, test=0.1):
     length = len(data)
-    return data[:train*length], \
-           data[train*length:(train + val)*length], \
-           data[(train + val)*length:(train + val + test)*length]
+    return data[:int(train*length)], \
+           data[int(train*length):int((train + val)*length)], \
+           data[int((train + val)*length):int((train + val + test)*length)]
 
 
 def load_data(seqs_path='seqs.npy', grna_path='grna.npy'):
@@ -159,8 +158,8 @@ def load_data(seqs_path='seqs.npy', grna_path='grna.npy'):
 
 
 def get_train_test(df, length=1e4):
-    debug_print(['loading genomic data from', GENOME_SEQUENCES_PATH])
-    for record in SeqIO.parse(GENOME_SEQUENCES_PATH, 'fasta'):
+    debug_print(['loading genomic data from', REFERENCE_GENOME_PATH])
+    for record in SeqIO.parse(REFERENCE_GENOME_PATH, 'fasta'):
         GENOME_SEQUENCES[record.id.split('.')[0]] = record.seq
 
     grna_list = []
@@ -204,7 +203,7 @@ def get_train_test(df, length=1e4):
     return seqs, grna
 
 
-def extract_data(path=DATA_PATH):
+def extract_data(path=GRNA_PATH):
     debug_print(['loading gRNA data from', path])
     df = pd.read_csv(path)
     shuffled_df = df.sample(frac=1).reset_index(drop=True)
