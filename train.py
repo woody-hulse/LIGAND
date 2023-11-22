@@ -24,15 +24,17 @@ def compute_baselines(models, X, Y):
         debug_print([model.name, 'loss:', baseline_loss.numpy()])
 
 
-def train(model, X, Y, epochs, batch_size=64, validation_split=0.2, graph=True, summary=True):
-    model.compile(loss='categorical_crossentropy', optimizer=tf.keras.optimizers.legacy.Adam(), metrics=['accuracy'])
-    model.build(X.shape)
+def train(model, X, Y, epochs, batch_size=64, validation_split=0.2, graph=True, summary=True, loss='categorical_crossentropy'):
+    debug_print(['training model'])
+
+    model.compile(loss=loss, optimizer=tf.keras.optimizers.legacy.Adam(), metrics=['accuracy'])
+    model(X)
     if summary: print(model.summary())
     model.fit(X, Y, batch_size=batch_size, epochs=epochs, validation_split=validation_split)
     
     if graph:
-        loss = model.history.history['loss'][3:]
-        val_loss = model.history.history['val_loss'][3:]
+        loss = model.history.history['loss']
+        val_loss = model.history.history['val_loss']
         plt.plot(loss, label='training')
         plt.plot(val_loss, label='validation')
         plt.ylabel('categorical crossentropy loss')
@@ -108,7 +110,10 @@ def main(load_data=False):
     model3 = ActorDense(seqs.shape[1:], grna.shape[1:])
     # model4 = tfm.nlp.models.TransformerDecoder(num_attention_heads=1)
     
-    train(model2, seqs, grna, 100)
+    discriminator_seqs, discriminator_grna = preprocessing.get_discriminator_train_test(seqs, grna)
+    discriminator = TestDiscriminator()
+    train(discriminator, discriminator_seqs, discriminator_grna, epochs=100, loss='binary_crossentropy')
+    # train(model2, seqs, grna, epochs=100)
     # train_multiproc(model2, seqs, grna, 100)
     
     # print(model(np.array([seqs[0]])))

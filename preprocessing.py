@@ -61,9 +61,13 @@ def fetch_epigenomic_signals(chromosome, start, end, a=0):
             string_vals = e[2].split('\t')
             val = 0 
             if string_vals[0].isnumeric():
-                val = float(string_vals[0]) / 1000
+                if float(string_vals[0] > 0): val = 1
+                else: val = 0 
+                # val = float(string_vals[0]) / 1000
             else:
-                val = float(string_vals[1]) / 1000
+                if float(string_vals[1] > 0): val = 1
+                else: val = 0 
+                # val = float(string_vals[1]) / 1000
             signals[read_start-start:read_end-start, index] = val
     
     h3k4me_vals = np.array(h3k4me_file.values(chromosome, start - a, end + a + 1))
@@ -201,6 +205,24 @@ def get_train_test(df, length=1e4):
         '\n                  gRNA: ', grna.shape])
 
     return seqs, grna
+
+
+def get_discriminator_train_test(seqs, grna):
+    debug_print(['generating synthetic data'])
+    length = seqs.shape[0]
+
+    synthetic_seqs = seqs[np.random.permutation(length)]
+    synthetic_grna = grna[np.random.permutation(length)]
+
+    seqs = np.concatenate([seqs, synthetic_seqs])
+    grna = np.concatenate([grna, synthetic_grna])
+
+    indices = np.random.permutation(length * 2)
+    X = [seqs[indices], grna[indices]]
+    Y = np.array([1 for _ in range(length)] + [0 for _ in range(length)])
+    Y = Y[indices]
+    
+    return X, Y
 
 
 def extract_data(path=GRNA_PATH):

@@ -4,7 +4,7 @@ import numpy as np
 from tqdm import tqdm
 
 import preprocessing
-import models
+from models import *
 
 
 class TestGenerator(tf.keras.Model):
