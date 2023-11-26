@@ -87,11 +87,11 @@ def main(load_data=False):
         df = preprocessing.extract_data()
         seqs, grna = preprocessing.get_train_test(df, 1e4)
         debug_print(['saving preprocessed data'])
-        np.save('seqs.npy', seqs)
-        np.save('grna.npy', grna)
+        np.save('data/seqs.npy', seqs)
+        np.save('data/grna.npy', grna)
 
 
-    batch_size = 8
+    batch_size = 32
     batched_seqs = preprocessing.batch_data(seqs, batch_size)
     batched_grna = preprocessing.batch_data(grna, batch_size)
 
@@ -110,9 +110,10 @@ def main(load_data=False):
     model3 = ActorDense(seqs.shape[1:], grna.shape[1:])
     # model4 = tfm.nlp.models.TransformerDecoder(num_attention_heads=1)
     
-    discriminator_seqs, discriminator_grna = preprocessing.get_discriminator_train_test(seqs, grna)
-    discriminator = TestDiscriminator()
-    train(discriminator, discriminator_seqs, discriminator_grna, epochs=100, loss='binary_crossentropy')
+    # discriminator_seqs, discriminator_grna = preprocessing.get_discriminator_train_test(seqs, grna)
+    # discriminator = TestDiscriminator()
+    # train(discriminator, discriminator_seqs, discriminator_grna, epochs=100, loss='binary_crossentropy')
+
     # train(model2, seqs, grna, epochs=100)
     # train_multiproc(model2, seqs, grna, 100)
     
@@ -120,8 +121,9 @@ def main(load_data=False):
     
     # print(grna[0])
     
-    # gan = TestGAN(seqs.shape[1:], grna.shape[1:])
-    # gan.train(batched_seqs, batched_grna, 10)
+    gan = TestGAN(seqs.shape[1:], grna.shape[1:])
+    train(gan.generator, seqs, grna, epochs=3, graph=False)
+    gan.train(batched_seqs, batched_grna, 25)
 
     # debug_print(['generator loss :', 
     #              tf.math.reduce_mean(tf.keras.losses.categorical_crossentropy(gan.generator(seqs[:100]), grna[:100])).numpy()])

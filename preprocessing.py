@@ -136,7 +136,7 @@ def batch_data(data, batch_size):
     debug_print(['batching data'])
     output_length = data.shape[0] // batch_size
     batched_data = np.zeros((output_length, batch_size, data.shape[1], data.shape[2]))
-    for index in range(output_length):
+    for index in range(output_length * batch_size):
         i = index // batch_size
         j = index % batch_size
         batched_data[i][j] = data[index]
@@ -151,7 +151,7 @@ def train_val_test_split(data, train=0.7, val=0.2, test=0.1):
            data[int((train + val)*length):int((train + val + test)*length)]
 
 
-def load_data(seqs_path='seqs.npy', grna_path='grna.npy'):
+def load_data(seqs_path='data/seqs.npy', grna_path='data/grna.npy'):
     debug_print(['loading preprocessed data'])
     seqs, grna = np.load(seqs_path), np.load(grna_path)
     debug_print([
@@ -214,7 +214,7 @@ def get_discriminator_train_test(seqs, grna):
     synthetic_seqs = seqs[np.random.permutation(length)]
     synthetic_grna = grna[np.random.permutation(length)]
 
-    seqs = np.concatenate([seqs, synthetic_seqs])
+    seqs = np.concatenate([seqs, seqs])
     grna = np.concatenate([grna, synthetic_grna])
 
     indices = np.random.permutation(length * 2)
