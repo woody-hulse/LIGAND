@@ -122,8 +122,8 @@ def main(load_data=False):
     # print(grna[0])
     
     gan = TestGAN(seqs.shape[1:], grna.shape[1:])
-    train(gan.generator, seqs, grna, epochs=3, graph=False)
-    gan.train(batched_seqs, batched_grna, 25)
+    train(gan.generator, seqs, grna, epochs=0, graph=False)
+    gan.train(batched_seqs, batched_grna, epochs=50, print_interval=1)
 
     # debug_print(['generator loss :', 
     #              tf.math.reduce_mean(tf.keras.losses.categorical_crossentropy(gan.generator(seqs[:100]), grna[:100])).numpy()])

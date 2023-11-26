@@ -94,7 +94,7 @@ class ActorConvDeconv(tf.keras.Model):
             tf.keras.layers.Conv1DTranspose(filters=1, kernel_size=3, activation='relu', padding='valid'),
 
             tf.keras.layers.Reshape(output_shape),
-            tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(4, activation='softmax'))
+            tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(4, activation='softmax', use_bias=False))
         ])
     
     def call(self, X):

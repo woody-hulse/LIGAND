@@ -14,8 +14,11 @@ def discriminator_loss(real_output, pred_output):
     total_loss = real_loss + fake_loss
     return total_loss
 
-def generator_loss(pred_output):
-    return tf.keras.losses.BinaryCrossentropy()(tf.ones_like(pred_output), pred_output)
+def generator_loss(pred, real, pred_output):
+    ratio = 0.5
+    gen  = tf.keras.losses.CategoricalCrossentropy()(real, pred)
+    disc = tf.keras.losses.BinaryCrossentropy()(tf.ones_like(pred_output), pred_output)
+    return gen * ratio + disc * (1 - ratio)
 
 
 class TestGenerator(tf.keras.Model):
@@ -79,7 +82,7 @@ class TestGAN(tf.keras.Model):
         test_data = [np.zeros((1,) + input_shape), np.zeros((1,) + output_shape)]
         self.discriminator(test_data)
     
-    def train(self, X, Y, epochs, batch_size=8, learning_rate=0.01, print_interval=1):
+    def train(self, X, Y, epochs, validation_data=(), batch_size=8, learning_rate=0.001, print_interval=1):
         debug_print(['training GAN'])
         generator_optimizer = tf.keras.optimizers.legacy.Adam(learning_rate)
         discriminator_optimizer = tf.keras.optimizers.legacy.Adam(learning_rate)
@@ -93,7 +96,7 @@ class TestGAN(tf.keras.Model):
 
             gen_loss = None
             disc_loss = None
-            for i in tqdm(range(X.shape[0]), desc='epoch {} : confidence {:.2f}'.format(str(epoch).zfill(4), confidence)):
+            for i in tqdm(range(X.shape[0]), desc='epoch {} / {} : confidence {:.2f}'.format(str(epoch).zfill(4), str(epochs).zfill(4), confidence)):
                 noise = tf.random.normal((batch_size,) + self.shape)
                 generated_probs = self.generator(X[i])
                 example_probs = generated_probs[0]
@@ -111,14 +114,18 @@ class TestGAN(tf.keras.Model):
                     for m in range(Y[i].shape[0]):
                         for n in range(Y[i].shape[1]):
                             real_Yi[m][n][pred[m][n]], real_Yi[m][n][real[m][n]] = real_Yi[m][n][real[m][n]], real_Yi[m][n][pred[m][n]]
+                            
+                    # add a term that slightly skews real_Yi further to correct result
+                    # epsilon = 0.01
+                    # real_Yi = real_Yi * (1 - epsilon) + Y[i] * epsilon
 
                     real_output = self.discriminator([X[i], real_Yi])
                     pred_output = self.discriminator([X[i], pred_Yi])
                     # pred_output2 = self.discriminator([X[i], tf.one_hot(tf.math.argmax(pred_Yi, axis=2), 4, axis=2)])
 
-                    gen_loss = generator_loss(pred_output)
+                    gen_loss = generator_loss(pred_Yi, Y[i], pred_output)
                     disc_loss = discriminator_loss(real_output, pred_output)
-                    print(gen_loss.numpy(), disc_loss.numpy())
+                    # print(gen_loss.numpy(), disc_loss.numpy())
                     # print(pred_output.numpy(), real_output.numpy())
 
                 gradients_generator = gen_tape.gradient(gen_loss, self.generator.trainable_variables)
@@ -128,14 +135,19 @@ class TestGAN(tf.keras.Model):
                 discriminator_optimizer.apply_gradients(zip(gradients_discriminator, self.discriminator.trainable_variables))
 
             if epoch % print_interval == 0:
-                print(self.generator(X[0]))
-                gen_real_loss, gen_accuracy = self.generator.evaluate(X[0], Y[0])
+                # print(self.generator(X[0]))
+                if not validation_data == ():
+                    gen_real_loss, gen_accuracy = self.generator.evaluate(validation_data[0], validation_data[1], verbose=0)
+                else:
+                    gen_real_loss, gen_accuracy = self.generator.evaluate(X[0], Y[0], verbose=0)
+                    gen_real_loss = str(gen_real_loss) + ' *'
+                    gen_accuracy = str(gen_accuracy) + ' *'
 
-                preprocessing.debug_print(['epoch', epoch, 
-                                           ':\n           generator GAN loss :', gen_loss.numpy(),
-                                           ' \n               generator loss :', gen_real_loss, 
-                                           ' \n           generator accuracy :', gen_accuracy,
-                                           ' \n       discriminator GAN loss :', disc_loss.numpy()])
+                preprocessing.debug_print(['epoch', str(epoch).zfill(4), 
+                                           ':\n              generator GAN loss :', gen_loss.numpy(),
+                                           ' \n                  generator loss :', gen_real_loss, 
+                                           ' \n              generator accuracy :', gen_accuracy,
+                                           ' \n          discriminator GAN loss :', disc_loss.numpy()])
 
 
 
