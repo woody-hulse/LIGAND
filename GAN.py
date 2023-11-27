@@ -45,7 +45,7 @@ class TestGenerator(tf.keras.Model):
 class TestDiscriminator(tf.keras.Model):
     def __init__(self, name='test_discriminator', **kwargs):
         super().__init__(name=name, **kwargs)
-        regularizer = tf.keras.regularizers.l2(0.01)
+        regularizer = tf.keras.regularizers.l2(0.0001)
         self.flatten = tf.keras.layers.Flatten()
         self.denseGRNA1 = tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=regularizer)
         self.denseGRNA2 = tf.keras.layers.Dense(32, activation='relu', kernel_regularizer=regularizer)
@@ -72,17 +72,56 @@ class TestDiscriminator(tf.keras.Model):
         return x
 
 
+class ConvDiscriminator(tf.keras.Model):
+    def __init__(self, input_shape=(23, 12, 1), name='conv_discriminator', **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.conv1 = tf.keras.layers.Conv2D(filters=64, kernel_size=(3, input_shape[2]), padding='valid', activation='relu')
+        self.flatten = tf.keras.layers.Flatten()
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(32, activation='relu')
+        self.dense3 = tf.keras.layers.Dense(1, activation='sigmoid')
+    
+    def preprocess_input(self, seqs, grna):
+        output_shape = (seqs.shape[0], seqs.shape[1], grna.shape[2])
+        pad_width = [(0, 0), (0, output_shape[1] - grna.shape[1]), (0, 0)]
+        padded_grna = np.pad(grna, pad_width, mode='constant', constant_values=0)
+        concat = np.concatenate([padded_grna, seqs], axis=2)
+        x = concat[..., np.newaxis]
+        return x
+        
+
+    def call(self, x):
+        x = self.preprocess_input(*x)
+        x = self.conv1(x)
+        x = self.flatten(x)
+        x = self.dense1(x)
+        x = self.dense2(x)
+        x = self.dense3(x)
+
+        return x
+
+
 class TestGAN(tf.keras.Model):
     def __init__(self, input_shape, output_shape, name='test_gan', **kwargs):
         super().__init__(name=name, **kwargs)
         self.shape = input_shape
         self.generator = ActorConvDeconv(input_shape, output_shape)
         self.generator.build((1,) + input_shape)
-        self.discriminator = TestDiscriminator()
+        # self.discriminator = TestDiscriminator()
+        self.discriminator = ConvDiscriminator()
         test_data = [np.zeros((1,) + input_shape), np.zeros((1,) + output_shape)]
         self.discriminator(test_data)
     
-    def train(self, X, Y, epochs, validation_data=(), batch_size=8, learning_rate=0.001, print_interval=1):
+    def train(self, X, Y, epochs, validation_data=(), batch_size=8, learning_rate=0.001, print_interval=1, summary=True):
+        if summary:
+            print()
+            debug_print(['generator architecture:'])
+            self.generator.summary()
+            print()
+            debug_print(['discriminator architecture:'])
+            self.discriminator.summary()
+            print()
+        
         debug_print(['training GAN'])
         generator_optimizer = tf.keras.optimizers.legacy.Adam(learning_rate)
         discriminator_optimizer = tf.keras.optimizers.legacy.Adam(learning_rate)
@@ -96,6 +135,7 @@ class TestGAN(tf.keras.Model):
 
             gen_loss = None
             disc_loss = None
+            disc_accuracy = 0
             for i in tqdm(range(X.shape[0]), desc='epoch {} / {} : confidence {:.2f}'.format(str(epoch).zfill(4), str(epochs).zfill(4), confidence)):
                 noise = tf.random.normal((batch_size,) + self.shape)
                 generated_probs = self.generator(X[i])
@@ -118,7 +158,7 @@ class TestGAN(tf.keras.Model):
                     # add a term that slightly skews real_Yi further to correct result
                     # epsilon = 0.01
                     # real_Yi = real_Yi * (1 - epsilon) + Y[i] * epsilon
-
+                    
                     real_output = self.discriminator([X[i], real_Yi])
                     pred_output = self.discriminator([X[i], pred_Yi])
                     # pred_output2 = self.discriminator([X[i], tf.one_hot(tf.math.argmax(pred_Yi, axis=2), 4, axis=2)])
@@ -127,6 +167,8 @@ class TestGAN(tf.keras.Model):
                     disc_loss = discriminator_loss(real_output, pred_output)
                     # print(gen_loss.numpy(), disc_loss.numpy())
                     # print(pred_output.numpy(), real_output.numpy())
+                    
+                    disc_accuracy += (np.count_nonzero(pred_output < 0.5) + np.count_nonzero(real_output > 0.5)) / (X.shape[0] * X.shape[1] * 2)
 
                 gradients_generator = gen_tape.gradient(gen_loss, self.generator.trainable_variables)
                 generator_optimizer.apply_gradients(zip(gradients_generator, self.generator.trainable_variables))
@@ -143,11 +185,14 @@ class TestGAN(tf.keras.Model):
                     gen_real_loss = str(gen_real_loss) + ' *'
                     gen_accuracy = str(gen_accuracy) + ' *'
 
-                preprocessing.debug_print(['epoch', str(epoch).zfill(4), 
-                                           ':\n              generator GAN loss :', gen_loss.numpy(),
-                                           ' \n                  generator loss :', gen_real_loss, 
-                                           ' \n              generator accuracy :', gen_accuracy,
-                                           ' \n          discriminator GAN loss :', disc_loss.numpy()])
+                preprocessing.debug_print([
+                    'epoch', f'{epoch:04}',
+                    ':\n              generator GAN loss :', f'{gen_loss.numpy():05.5f}',
+                    ' \n                  generator loss :', f'{gen_real_loss:05.5f}',
+                    ' \n              generator accuracy :', f'{gen_accuracy:05.5f}',
+                    ' \n          discriminator GAN loss :', f'{disc_loss.numpy():05.5f}',
+                    ' \n          discriminator accuracy :', f'{disc_accuracy:05.5f}'
+                ])
 
 
 

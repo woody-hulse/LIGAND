@@ -29,7 +29,7 @@ def train(model, X, Y, epochs, batch_size=64, validation_split=0.2, graph=True, 
 
     model.compile(loss=loss, optimizer=tf.keras.optimizers.legacy.Adam(), metrics=['accuracy'])
     model(X)
-    if summary: print(model.summary())
+    if summary: model.summary()
     model.fit(X, Y, batch_size=batch_size, epochs=epochs, validation_split=validation_split)
     
     if graph:
@@ -94,9 +94,12 @@ def main(load_data=False):
     batch_size = 32
     batched_seqs = preprocessing.batch_data(seqs, batch_size)
     batched_grna = preprocessing.batch_data(grna, batch_size)
+    
+    batched_seqs_train, batched_seqs_val, batched_seqs_test = preprocessing.train_val_test_split(batched_seqs)
+    batched_grna_train, batched_grna_val, batched_grna_test = preprocessing.train_val_test_split(batched_grna)
 
-    # seqs_train, seqs_val, seqs_test = preprocessing.train_val_test_split(seqs)
-    # grna_train, grna_val, grna_test = preprocessing.train_val_test_split(grna)
+    seqs_train, seqs_val, seqs_test = preprocessing.train_val_test_split(seqs)
+    grna_train, grna_val, grna_test = preprocessing.train_val_test_split(grna)
 
     compute_baselines([
         GuessBaseline(grna),
@@ -122,8 +125,13 @@ def main(load_data=False):
     # print(grna[0])
     
     gan = TestGAN(seqs.shape[1:], grna.shape[1:])
-    train(gan.generator, seqs, grna, epochs=0, graph=False)
-    gan.train(batched_seqs, batched_grna, epochs=50, print_interval=1)
+    train(gan.generator, seqs, grna, epochs=0, graph=False, summary=False)
+    train(gan.discriminator, [seqs, grna], np.ones(len(seqs)), epochs=0, graph=False, summary=False)
+    gan.train(batched_seqs_train, 
+              batched_grna_train, 
+              epochs=50, 
+              validation_data=(seqs_val, grna_val), 
+              print_interval=1, summary=True)
 
     # debug_print(['generator loss :', 
     #              tf.math.reduce_mean(tf.keras.losses.categorical_crossentropy(gan.generator(seqs[:100]), grna[:100])).numpy()])
