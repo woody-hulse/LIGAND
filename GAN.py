@@ -112,8 +112,33 @@ class TestGAN(tf.keras.Model):
         self.discriminator = ConvDiscriminator()
         test_data = [np.zeros((1,) + input_shape), np.zeros((1,) + output_shape)]
         self.discriminator(test_data)
+        
     
-    def train(self, X, Y, epochs, validation_data=(), batch_size=8, learning_rate=0.001, print_interval=1, summary=True, plot=True):
+    def save_model(self):
+        debug_print(['saving GAN'])
+        self.generator.save('models/generator.keras')
+        self.discriminator.save('models/discriminator.keras')
+    
+    
+    def load_model(self):
+        debug_print(['loading GAN'])
+        self.generator = tf.keras.models.load_model('models/generator.keras')
+        self.discriminator = tf.keras.models.load_model('models/discriminator.keras')
+    
+    
+    def train(self, 
+              X, Y, 
+              epochs, 
+              validation_data=(), 
+              batch_size=8, 
+              learning_rate=0.001, 
+              print_interval=1, 
+              summary=True, plot=True,
+              save=True, load=False):
+        
+        if load:
+            self.load_model()
+        
         if summary:
             print()
             debug_print(['generator architecture:'])
@@ -207,6 +232,9 @@ class TestGAN(tf.keras.Model):
                     ' \n          discriminator GAN loss :', f'{disc_loss.numpy():05.5f}',
                     ' \n          discriminator accuracy :', f'{disc_accuracy:05.5f}'
                 ])
+                
+        if save:
+            self.save_model()
     
         if plot:
             plt.plot(gen_losses, label='generator GAN loss')

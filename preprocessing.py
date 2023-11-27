@@ -26,12 +26,13 @@ def debug_print(statements=[], end='\n'):
     print(end=end)
 
 
-def read_genome(df, path=REFERENCE_GENOME_PATH):
-    tm = SeqIO.parse(path, 'fasta')
-    debug_print(['dna sequence imported from', path])
+def read_genome(path=REFERENCE_GENOME_PATH):
+    debug_print(['loading genomic data from', path])
+    for record in SeqIO.parse(path, 'fasta'):
+        GENOME_SEQUENCES[record.id.split('.')[0]] = record.seq
 
 
-def fetch_genome_sequence(chromosome, start, end, a=0):
+def fetch_genomic_sequence(chromosome, start, end, a=0):
     chromosome_id = f'NC_0000{chromosome}'
     genome_sequence = GENOME_SEQUENCES.get(chromosome_id)
     if genome_sequence:
@@ -162,9 +163,7 @@ def load_data(seqs_path='data/seqs.npy', grna_path='data/grna.npy'):
 
 
 def get_train_test(df, length=1e4):
-    debug_print(['loading genomic data from', REFERENCE_GENOME_PATH])
-    for record in SeqIO.parse(REFERENCE_GENOME_PATH, 'fasta'):
-        GENOME_SEQUENCES[record.id.split('.')[0]] = record.seq
+    read_genome()
 
     grna_list = []
     seqs_list = []
@@ -178,7 +177,8 @@ def get_train_test(df, length=1e4):
         if row[0][0] == 'N': continue
         start, end = row[4], row[5]
         try:
-            seq = fetch_genome_sequence(chromosome, start, end).lower()
+            print(chromosome)
+            seq = fetch_genomic_sequence(chromosome, start, end).lower()
             rna = row[0].lower()
             if set(list(seq)).union(bases) == set(list(seq)) and \
                set(list(rna)).union(bases) == set(list(rna)):
