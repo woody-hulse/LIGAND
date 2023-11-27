@@ -120,10 +120,6 @@ def main(load_data=False):
     # train(model2, seqs, grna, epochs=100)
     # train_multiproc(model2, seqs, grna, 100)
     
-    # print(model(np.array([seqs[0]])))
-    
-    # print(grna[0])
-    
     gan = TestGAN(seqs.shape[1:], grna.shape[1:])
     train(gan.generator, seqs, grna, epochs=0, graph=False, summary=False)
     train(gan.discriminator, [seqs, grna], np.ones(len(seqs)), epochs=0, graph=False, summary=False)
@@ -132,9 +128,6 @@ def main(load_data=False):
               epochs=50, 
               validation_data=(seqs_val, grna_val), 
               print_interval=1, summary=True)
-
-    # debug_print(['generator loss :', 
-    #              tf.math.reduce_mean(tf.keras.losses.categorical_crossentropy(gan.generator(seqs[:100]), grna[:100])).numpy()])
     
 
 

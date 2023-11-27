@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 import preprocessing
@@ -112,7 +113,7 @@ class TestGAN(tf.keras.Model):
         test_data = [np.zeros((1,) + input_shape), np.zeros((1,) + output_shape)]
         self.discriminator(test_data)
     
-    def train(self, X, Y, epochs, validation_data=(), batch_size=8, learning_rate=0.001, print_interval=1, summary=True):
+    def train(self, X, Y, epochs, validation_data=(), batch_size=8, learning_rate=0.001, print_interval=1, summary=True, plot=True):
         if summary:
             print()
             debug_print(['generator architecture:'])
@@ -128,6 +129,12 @@ class TestGAN(tf.keras.Model):
 
         mean_probs = np.full(Y[0].shape, .25)
         
+        gen_losses = []
+        gen_real_losses = []
+        gen_accuracies = []
+        disc_losses = []
+        disc_accuracies = []
+        
         confidence = 0
         for epoch in range(1, epochs + 1):
             example_probs = None
@@ -136,6 +143,7 @@ class TestGAN(tf.keras.Model):
             gen_loss = None
             disc_loss = None
             disc_accuracy = 0
+
             for i in tqdm(range(X.shape[0]), desc='epoch {} / {} : confidence {:.2f}'.format(str(epoch).zfill(4), str(epochs).zfill(4), confidence)):
                 noise = tf.random.normal((batch_size,) + self.shape)
                 generated_probs = self.generator(X[i])
@@ -176,12 +184,18 @@ class TestGAN(tf.keras.Model):
                 gradients_discriminator = disc_tape.gradient(disc_loss, self.discriminator.trainable_variables)
                 discriminator_optimizer.apply_gradients(zip(gradients_discriminator, self.discriminator.trainable_variables))
 
+            if not validation_data == (): gen_real_loss, gen_accuracy = self.generator.evaluate(validation_data[0], validation_data[1], verbose=0)
+            else: gen_real_loss, gen_accuracy = self.generator.evaluate(X[0], Y[0], verbose=0)
+            
+            gen_losses.append(gen_loss.numpy())
+            gen_real_losses.append(gen_real_loss)
+            gen_accuracies.append(gen_accuracy)
+            disc_losses.append(disc_loss.numpy())
+            disc_accuracies.append(disc_accuracy)
+            
             if epoch % print_interval == 0:
                 # print(self.generator(X[0]))
-                if not validation_data == ():
-                    gen_real_loss, gen_accuracy = self.generator.evaluate(validation_data[0], validation_data[1], verbose=0)
-                else:
-                    gen_real_loss, gen_accuracy = self.generator.evaluate(X[0], Y[0], verbose=0)
+                if validation_data == ():
                     gen_real_loss = str(gen_real_loss) + ' *'
                     gen_accuracy = str(gen_accuracy) + ' *'
 
@@ -193,7 +207,21 @@ class TestGAN(tf.keras.Model):
                     ' \n          discriminator GAN loss :', f'{disc_loss.numpy():05.5f}',
                     ' \n          discriminator accuracy :', f'{disc_accuracy:05.5f}'
                 ])
-
-
-
-
+    
+        if plot:
+            plt.plot(gen_losses, label='generator GAN loss')
+            plt.plot(disc_losses, label='discriminator GAN loss')
+            plt.plot(gen_real_losses, label='generator loss')
+            plt.title('GAN loss')
+            plt.ylabel('crossentropy loss')
+            plt.xlabel('epoch')
+            plt.legend()
+            plt.show()
+            
+            plt.plot(gen_accuracies, label='generator accuracy')
+            plt.plot(disc_accuracies, label='discriminator accuracy')
+            plt.title('GAN accuracy')
+            plt.ylabel('accuracy (0-1)')
+            plt.xlabel('epoch')
+            plt.legend()
+            plt.show()
