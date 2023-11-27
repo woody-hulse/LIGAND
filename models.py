@@ -78,7 +78,7 @@ class ActorConvDeconv(tf.keras.Model):
         latent_size = output_shape[0] * 4 - 6
 
         self.Encoder = tf.keras.models.Sequential([
-            tf.keras.layers.Reshape(input_shape + (1,)),
+            tf.keras.layers.Reshape(list(input_shape) + [1,]),
             tf.keras.layers.Conv1D(filters=64, kernel_size=3, activation='relu', padding='same'),
             tf.keras.layers.Conv1D(filters=64, kernel_size=3, activation='relu', padding='same'),
             tf.keras.layers.Conv1D(filters=64, kernel_size=3, activation='relu', padding='same'),
