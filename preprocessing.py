@@ -62,11 +62,11 @@ def fetch_epigenomic_signals(chromosome, start, end, a=0):
             string_vals = e[2].split('\t')
             val = 0 
             if string_vals[0].isnumeric():
-                if float(string_vals[0] > 0): val = 1
+                if float(string_vals[0]) > 0: val = 1
                 else: val = 0 
                 # val = float(string_vals[0]) / 1000
             else:
-                if float(string_vals[1] > 0): val = 1
+                if float(string_vals[1]) > 0: val = 1
                 else: val = 0 
                 # val = float(string_vals[1]) / 1000
             signals[read_start-start:read_end-start, index] = val
@@ -177,7 +177,6 @@ def get_train_test(df, length=1e4):
         if row[0][0] == 'N': continue
         start, end = row[4], row[5]
         try:
-            print(chromosome)
             seq = fetch_genomic_sequence(chromosome, start, end).lower()
             rna = row[0].lower()
             if set(list(seq)).union(bases) == set(list(seq)) and \

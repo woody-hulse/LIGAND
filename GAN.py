@@ -188,6 +188,7 @@ class TestGAN(tf.keras.Model):
                         for n in range(Y[i].shape[1]):
                             real_Yi[m][n][pred[m][n]], real_Yi[m][n][real[m][n]] = real_Yi[m][n][real[m][n]], real_Yi[m][n][pred[m][n]]
                             
+                            
                     # add a term that slightly skews real_Yi further to correct result
                     # epsilon = 0.01
                     # real_Yi = real_Yi * (1 - epsilon) + Y[i] * epsilon
@@ -195,9 +196,10 @@ class TestGAN(tf.keras.Model):
                     real_output = self.discriminator([X[i], real_Yi])
                     pred_output = self.discriminator([X[i], pred_Yi])
                     # pred_output2 = self.discriminator([X[i], tf.one_hot(tf.math.argmax(pred_Yi, axis=2), 4, axis=2)])
+                    mismatch_output = self.discriminator([X[np.random.randint(0, len(X))], Y[i]])
 
                     gen_loss = generator_loss(pred_Yi, Y[i], pred_output)
-                    disc_loss = discriminator_loss(real_output, pred_output)
+                    disc_loss = discriminator_loss(real_output, tf.concat([pred_output, mismatch_output], axis=0))
                     # print(gen_loss.numpy(), disc_loss.numpy())
                     # print(pred_output.numpy(), real_output.numpy())
                     

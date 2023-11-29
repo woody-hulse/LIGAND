@@ -128,7 +128,7 @@ def main(load_data=False):
         seqs, grna = preprocessing.load_data()
     else:
         df = preprocessing.extract_data()
-        seqs, grna = preprocessing.get_train_test(df, 1e4)
+        seqs, grna = preprocessing.get_train_test(df, 1e5)
         debug_print(['saving preprocessed data'])
         np.save('data/seqs.npy', seqs)
         np.save('data/grna.npy', grna)
@@ -168,10 +168,10 @@ def main(load_data=False):
     train(gan.discriminator, [seqs, grna], np.ones(len(seqs)), epochs=0, graph=False, summary=False)
     gan.train(batched_seqs_train, 
               batched_grna_train, 
-              epochs=50, 
+              epochs=100, 
               validation_data=(seqs_val, grna_val), 
-              print_interval=1, summary=True, plot=False,
-              save=False, load=False)
+              print_interval=1, summary=True, plot=True,
+              save=True, load=False)
     
     
     preprocessing.read_genome()
@@ -179,12 +179,12 @@ def main(load_data=False):
         discriminator=gan.discriminator,
         rna='GAATGGGAGAGAATATCACT',
         chromosome='18',
-        start=7080001 - 200,
-        end=7080023 + 200,
+        start=7080001 - 400,
+        end=7080023 + 400,
         bind_site=7080001)
 
 
 if __name__ == '__main__':
     os.system('clear')
 
-    main(True)
+    main(False)
