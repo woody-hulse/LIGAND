@@ -2,7 +2,7 @@ import csv
 import os
 from tqdm import tqdm
 import datetime
-
+import random
 import numpy as np
 import pandas as pd
 
@@ -229,3 +229,52 @@ def extract_data(path=GRNA_PATH):
     df = pd.read_csv(path)
     shuffled_df = df.sample(frac=1).reset_index(drop=True)
     return shuffled_df
+
+EFFICACY_PATHS= {
+    'hct':'data/ontar/hct116.csv',
+    'hek':'data/ontar/hek293t.csv',
+    'hela':'data/ontar/hela.csv',
+    'hl60':'data/ontar/hl60.csv',
+    'offtar_off':'data/offtar_off.csv',
+}
+EFFICACY_MAP = {}
+gRNA = []
+
+# Not using cell type right now
+def populate_efficacy_map():
+    for cell_type in EFFICACY_PATHS:
+        sgRNA_map = {}
+        path = EFFICACY_PATHS[cell_type]
+        with open(path, 'r') as csv_file:
+            csv_reader = csv.DictReader(csv_file)
+
+            for row in csv_reader:
+                chromosome = row['Chromosome']
+                start = int(row['Start'])
+                end = int(row['End'])
+                sgRNA = ''
+                efficacy = 0
+                if cell_type == 'offtar_off':
+                    sgRNA = row['OT']
+                    efficacy = float(row['Cleavage Frequency'])
+                else:
+                    sgRNA = row['sgRNA']
+                    efficacy = float(row['Normalized efficacy'])
+                gRNA.append(sgRNA)
+                key_tuple = (sgRNA, chromosome, start, end)
+                sgRNA_map[key_tuple] = efficacy
+                EFFICACY_MAP[key_tuple] = efficacy
+    return EFFICACY_MAP
+
+def get_efficacy(sgRNA, chromosome, start, end):
+    key_tuple = (sgRNA, chromosome, start, end)
+    return EFFICACY_MAP[key_tuple]
+
+def get_random_efficacy(targ_GRNA, chromosome, start, end):
+    key = (random.choice(gRNA), chromosome, start, end)
+    count = 0
+    while key not in EFFICACY_MAP or key[0] == targ_GRNA:
+        key = (random.choice(gRNA), chromosome, start, end)
+        count +=1
+    return key[0]
+

@@ -3,4 +3,6 @@ hg_guide_info.csv
 grna.npy
 seqs.npy
 data/*
+GM12878/*
 models/*
+.DS_Store
