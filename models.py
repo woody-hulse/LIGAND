@@ -180,10 +180,10 @@ class PairBaseline():
         Y_pred = np.zeros((X.shape[0],) + (20, 4))
         for i in range(Y_pred.shape[0]):
             for j in range(Y_pred.shape[1]):
-                if X[i][j][0] == 1: Y_pred[i][j][3] = 1
-                if X[i][j][1] == 1: Y_pred[i][j][2] = 1
-                if X[i][j][2] == 1: Y_pred[i][j][1] = 1
-                if X[i][j][3] == 1: Y_pred[i][j][0] = 1
+                if X[i][j][0] == 1: Y_pred[i][j][0] = 1
+                if X[i][j][1] == 1: Y_pred[i][j][1] = 1
+                if X[i][j][2] == 1: Y_pred[i][j][2] = 1
+                if X[i][j][3] == 1: Y_pred[i][j][3] = 1
         return Y_pred
     
     def predict(self, X):

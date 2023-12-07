@@ -128,7 +128,7 @@ def main(load_data=False):
         seqs, grna = preprocessing.load_data()
     else:
         df = preprocessing.extract_data()
-        seqs, grna = preprocessing.get_train_test(df, 1e5)
+        seqs, grna = preprocessing.get_train_test(df, 1e4)
         debug_print(['saving preprocessed data'])
         np.save('data/seqs.npy', seqs)
         np.save('data/grna.npy', grna)
@@ -151,29 +151,31 @@ def main(load_data=False):
         PairBaseline()
     ], seqs, grna)
 
+    # actor model training
     model1 = ActorTransformer1(seqs.shape[1:], grna.shape[1:], num_transformers=4, hidden_size=32)
     model2 = ActorConvDeconv(seqs.shape[1:], grna.shape[1:])
     model3 = ActorDense(seqs.shape[1:], grna.shape[1:])
     # model4 = tfm.nlp.models.TransformerDecoder(num_attention_heads=1)
-    
-    # discriminator_seqs, discriminator_grna = preprocessing.get_discriminator_train_test(seqs, grna)
-    # discriminator = TestDiscriminator()
-    # train(discriminator, discriminator_seqs, discriminator_grna, epochs=100, loss='binary_crossentropy')
-
     # train(model2, seqs, grna, epochs=100)
     # train_multiproc(model2, seqs, grna, 100)
     
+    # discriminator model training
+    # discriminator_seqs, discriminator_grna = preprocessing.get_discriminator_train_test(seqs, grna)
+    # discriminator = TestDiscriminator()
+    # train(discriminator, discriminator_seqs, discriminator_grna, epochs=100, loss='binary_crossentropy')
+    
+    # gan model training
     gan = TestGAN(seqs.shape[1:], grna.shape[1:])
     train(gan.generator, seqs, grna, epochs=0, graph=False, summary=False)
     train(gan.discriminator, [seqs, grna], np.ones(len(seqs)), epochs=0, graph=False, summary=False)
     gan.train(batched_seqs_train, 
               batched_grna_train, 
-              epochs=100, 
+              epochs=50, 
               validation_data=(seqs_val, grna_val), 
               print_interval=1, summary=True, plot=True,
               save=True, load=False)
     
-    
+    # discriminator sliding window
     preprocessing.read_genome()
     activity_test(
         discriminator=gan.discriminator,
@@ -187,4 +189,4 @@ def main(load_data=False):
 if __name__ == '__main__':
     os.system('clear')
 
-    main(False)
+    main(True)
