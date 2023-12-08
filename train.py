@@ -90,7 +90,7 @@ def activity_test(discriminator, rna, chromosome, start, end, view_length=23, bi
     if bind_site == -1: bind_site = (start + end) // 2
         
     ohe_rna = np.concatenate([preprocessing.ohe_base(base) for base in rna], axis=0)
-    seq = preprocessing.fetch_genomic_sequence(chromosome, start, end)
+    seq = preprocessing.fetch_genomic_sequence(chromosome, start, end).lower()
     ohe_seq = np.concatenate([preprocessing.ohe_base(base) for base in seq], axis=0)
     epigenomic_signals = preprocessing.fetch_epigenomic_signals(chromosome, start, end)
     epigenomic_seq = np.concatenate([ohe_seq, epigenomic_signals], axis=1)
@@ -129,6 +129,7 @@ def perturbation_analysis(discriminator, chromosome, start, end, bind_site, rna,
     middle = len(original)//2
     orig_target_mean = np.mean(original[middle-20:middle+50])
     perturbed_target_means = np.zeros(len(RNA) - perturbation_length + 1)
+    
     for i in range(0, len(RNA)-perturbation_length + 1):
         perturbed_grna = list(RNA)
         perturbed_grna[i:i + perturbation_length] = base * perturbation_length
