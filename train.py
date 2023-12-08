@@ -81,7 +81,6 @@ def train_multiproc(model, X, Y, epochs, batch_size=16, validation_split=0.2):
         debug_print(['epoch', epoch, 'loss :', average_loss])
         
         
-
 def activity_test(discriminator, rna, chromosome, start, end, view_length=23, bind_site=-1, plot=True):
     
     def moving_average(x, w):
@@ -157,6 +156,95 @@ def perturbation_analysis(discriminator, chromosome, start, end, bind_site, rna,
     plt.title('Perturbation Index vs Effect on Target Bind Activity Percent Change')
     plt.show()
 
+
+def prediction_to_sequence(prediction):
+    seq = ''
+    for base in prediction:
+        nucleotide = np.argmax(base)
+        if nucleotide == 0: seq += 'A'
+        elif nucleotide == 1: seq += 'C'
+        elif nucleotide == 2: seq += 'G'
+        elif nucleotide == 3: seq += 'T'
+    return seq
+
+def ohe_dna_to_sequence(ohe_dna):
+    seq = ''
+
+    # truncate off epigenomic signals
+    ohe_dna = ohe_dna[:, :4]
+
+    for base in ohe_dna:
+        nucleotide = np.argmax(base)
+        if nucleotide == 0: seq += 'A'
+        elif nucleotide == 1: seq += 'C'
+        elif nucleotide == 2: seq += 'G'
+        elif nucleotide == 3: seq += 'T'
+    return seq
+
+def deviation_from_complement_dna(model, dna_sequences, target_sequences):
+    deviations = np.zeros_like(target_sequences[0])
+
+    # Ensure X and Y have the same number of sequences
+    if len(dna_sequences) != len(target_sequences):
+        raise ValueError("The number of DNA sequences and target sequences must be the same")
+
+    for dna_seq, target_seq in zip(dna_sequences, target_sequences):
+        # Predict the model output
+        prediction = model.predict(np.expand_dims(dna_seq, axis=0))[0]
+
+        # Extract only the DNA part (assuming the first 4 columns represent DNA)
+        ohe_dna = dna_seq[:, :4]
+
+        # Calculate the complement (A<->T, C<->G) using vectorized operation
+        complement_dna = ohe_dna[:20, [3, 2, 1, 0]]
+
+        # Calculate deviation
+        deviation = np.abs(prediction[:20] - complement_dna)
+        deviations+= deviation
+    
+    # Average the deviations
+    deviations /= len(dna_sequences)
+    debug_print(['shape', deviations.shape, 'deviations:', deviations])
+
+    # Graph deviation per nuceotide per position
+    fig, ax = plt.subplots()
+
+    # Plot each line
+    ax.plot(deviations[:, 0], label=f'A')
+    ax.plot(deviations[:, 1], label=f'C')
+    ax.plot(deviations[:, 2], label=f'G')
+    ax.plot(deviations[:, 3], label=f'T')
+    ax.plot(np.mean(deviations, axis=1), label='Average')
+
+    # Set x-axis and y-axis labels
+    ax.set_xlabel('Position')
+    ax.set_ylabel('Deviation')
+
+    # Set x-axis ticks at intervals of 5
+    ax.set_xticks(np.arange(0, len(deviations), 5))
+
+
+    # Add a legend
+    ax.legend()
+
+    # Show the plot
+    plt.show()
+
+    return deviations
+
+def generate_examples(model, X, Y, num_examples=10):
+    for i in range(num_examples):
+        idx = random.randint(0, len(X) - 1)
+        x = X[idx]
+        y = Y[idx]
+        y_pred = model.predict(np.expand_dims(x, axis=0))[0]
+
+        x = ohe_dna_to_sequence(x)
+        y = prediction_to_sequence(y)
+        y_pred = prediction_to_sequence(y_pred)
+
+        debug_print(['example', i, 'input:', x, 'output:', y, 'prediction:', y_pred])
+
 def main(load_data=False):
     if load_data:
         seqs, grna = preprocessing.load_data()
@@ -189,7 +277,7 @@ def main(load_data=False):
     model1 = ActorTransformer1(seqs.shape[1:], grna.shape[1:], num_transformers=4, hidden_size=32)
     model2 = ActorConvDeconv(seqs.shape[1:], grna.shape[1:])
     model3 = ActorDense(seqs.shape[1:], grna.shape[1:])
-    # model4 = tfm.nlp.models.TransformerDecoder(num_attention_heads=1)
+    # model4 = tfm.nlp.models.TransformerDecoder(num_attention_heads=1)-
     # train(model2, seqs, grna, epochs=100)
     # train_multiproc(model2, seqs, grna, 100)
     
@@ -202,6 +290,7 @@ def main(load_data=False):
     gan = TestGAN(seqs.shape[1:], grna.shape[1:])
     train(gan.generator, seqs, grna, epochs=0, graph=False, summary=False)
     train(gan.discriminator, [seqs, grna], np.ones(len(seqs)), epochs=0, graph=False, summary=False)
+    
     gan.train(batched_seqs_train, 
               batched_grna_train, 
               epochs=50, 
@@ -230,6 +319,13 @@ def main(load_data=False):
                 perturbation_length=perturb_len,
                 base=base)
     
+    # examples
+    generate_examples(gan.generator, seqs, grna, num_examples=10)
+
+    # deviation from DNA
+    deviations = deviation_from_complement_dna(gan.generator, seqs, grna)
+    debug_print(['average deviation from DNA:', np.mean(deviations, axis=0)])
+
 
 if __name__ == '__main__':
     os.system('clear')

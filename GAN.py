@@ -147,7 +147,8 @@ class TestGAN(tf.keras.Model):
               save=True, load=False):
         
         if load:
-            self.load_model()
+            self.generator.load_weights('models/generator.keras')
+            self.discriminator.load_weights('models/discriminator.keras')
         
         if summary:
             print()
@@ -158,113 +159,115 @@ class TestGAN(tf.keras.Model):
             self.discriminator.summary()
             print()
         
-        debug_print(['training GAN'])
-        generator_optimizer = tf.keras.optimizers.Adam(learning_rate)
-        discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate)
+        if not load:
+            debug_print(['training GAN'])
+            generator_optimizer = tf.keras.optimizers.legacy.Adam(learning_rate)
+            discriminator_optimizer = tf.keras.optimizers.legacy.Adam(learning_rate)
 
-        mean_probs = np.full(Y[0].shape, .25)
-        
-        gen_losses = []
-        gen_real_losses = []
-        gen_accuracies = []
-        disc_losses = []
-        disc_accuracies = []
-        
-        confidence = 0
-        for epoch in range(1, epochs + 1):
-            example_probs = None
-            example_labels = None
+            mean_probs = np.full(Y[0].shape, .25)
+            
+            gen_losses = []
+            gen_real_losses = []
+            gen_accuracies = []
+            disc_losses = []
+            disc_accuracies = []
+            
+            confidence = 0
+            for epoch in range(1, epochs + 1):
+                example_probs = None
+                example_labels = None
 
-            gen_loss = None
-            disc_loss = None
-            disc_accuracy = 0
+                gen_loss = None
+                disc_loss = None
+                disc_accuracy = 0
 
-            for i in tqdm(range(X.shape[0]), desc='epoch {} / {} : confidence {:.2f}'.format(str(epoch).zfill(4), str(epochs).zfill(4), confidence)):
-                # add noise to generator input
-                noise = tf.random.normal(X[i].shape) * 0.01
-                generated_probs = self.generator(X[i] + noise)
+                for i in tqdm(range(X.shape[0]), desc='epoch {} / {} : confidence {:.2f}'.format(str(epoch).zfill(4), str(epochs).zfill(4), confidence)):
+                    # add noise to generator input
+                    noise = tf.random.normal(X[i].shape) * 0.01
+                    generated_probs = self.generator(X[i] + noise)
 
-                # compute prediction confidence by deviation from mean prediction
-                confidence = tf.keras.losses.MeanSquaredError()(generated_probs, mean_probs) * 100
-                
-                # generated sequences as the argmax of predicted input (unused)
-                generated_sequences = tf.one_hot(tf.math.argmax(generated_probs, axis=2), 4, axis=2)
-
-                with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
-                    # get the generator output G(d_t)
-                    pred_Yi = self.generator(X[i])
-                    pred = np.argmax(pred_Yi, axis=2)
-                    real = np.argmax(Y[i], axis=2)
-                    real_Yi = pred_Yi.numpy()
-
-                    # define real_Yi (g_t) as the corrected probabilities from pred_Yi
-                    for m in range(Y[i].shape[0]):
-                        for n in range(Y[i].shape[1]):
-                            real_Yi[m][n][pred[m][n]], real_Yi[m][n][real[m][n]] = real_Yi[m][n][real[m][n]], real_Yi[m][n][pred[m][n]]
+                    # compute prediction confidence by deviation from mean prediction
+                    confidence = tf.keras.losses.MeanSquaredError()(generated_probs, mean_probs) * 100
                     
-                    # get the discriminator output for different permutations of 
-                    real_output = self.discriminator([X[i], real_Yi])
-                    pred_output = self.discriminator([X[i], pred_Yi])
-                    mismatch_output = self.discriminator([X[np.random.randint(0, len(X))], Y[i]])
-                    gen_mismatch_output = self.discriminator([X[np.random.randint(0, len(X))], pred_Yi])
+                    # generated sequences as the argmax of predicted input (unused)
+                    generated_sequences = tf.one_hot(tf.math.argmax(generated_probs, axis=2), 4, axis=2)
 
-                    # compute loss:
-                    # G_loss = lambda1 * BC(g_t, G(d_t)) + lambda2 * BC(1, D(G(d_t), d_t)) + lambda3 * BC(0, D(G(d_t), d_rand))
-                    gen_loss = generator_loss(pred_Yi, Y[i], pred_output, gen_mismatch_output)
-                    # D_loss = lambda1 * BC(1, D(g_t, d_t)) + lambda2 * (BC(0, D(G(d_t), d_t)) + BC(0, D(g_t, d_rand)))
-                    disc_loss = discriminator_loss(real_output, tf.concat([pred_output, mismatch_output], axis=0))
-                    # print(gen_loss.numpy(), disc_loss.numpy())
-                    # print(pred_output.numpy(), real_output.numpy())
-                    
-                    # compute accuracy of argmax of discriminator predicted output
-                    disc_accuracy += (np.count_nonzero(pred_output < 0.5) + np.count_nonzero(real_output > 0.5)) / (X.shape[0] * X.shape[1] * 2)
+                    with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
+                        # get the generator output G(d_t)
+                        pred_Yi = self.generator(X[i])
+                        pred = np.argmax(pred_Yi, axis=2)
+                        real = np.argmax(Y[i], axis=2)
+                        real_Yi = pred_Yi.numpy()
 
-                gradients_generator = gen_tape.gradient(gen_loss, self.generator.trainable_variables)
-                generator_optimizer.apply_gradients(zip(gradients_generator, self.generator.trainable_variables))
+                        # define real_Yi (g_t) as the corrected probabilities from pred_Yi
+                        for m in range(Y[i].shape[0]):
+                            for n in range(Y[i].shape[1]):
+                                real_Yi[m][n][pred[m][n]], real_Yi[m][n][real[m][n]] = real_Yi[m][n][real[m][n]], real_Yi[m][n][pred[m][n]]
+                        
+                        # get the discriminator output for different permutations of 
+                        real_output = self.discriminator([X[i], real_Yi])
+                        pred_output = self.discriminator([X[i], pred_Yi])
+                        mismatch_output = self.discriminator([X[np.random.randint(0, len(X))], Y[i]])
+                        gen_mismatch_output = self.discriminator([X[np.random.randint(0, len(X))], pred_Yi])
 
-                gradients_discriminator = disc_tape.gradient(disc_loss, self.discriminator.trainable_variables)
-                discriminator_optimizer.apply_gradients(zip(gradients_discriminator, self.discriminator.trainable_variables))
+                        # compute loss:
+                        # G_loss = lambda1 * BC(g_t, G(d_t)) + lambda2 * BC(1, D(G(d_t), d_t)) + lambda3 * BC(0, D(G(d_t), d_rand))
+                        gen_loss = generator_loss(pred_Yi, Y[i], pred_output, gen_mismatch_output)
+                        # D_loss = lambda1 * BC(1, D(g_t, d_t)) + lambda2 * (BC(0, D(G(d_t), d_t)) + BC(0, D(g_t, d_rand)))
+                        disc_loss = discriminator_loss(real_output, tf.concat([pred_output, mismatch_output], axis=0))
+                        # print(gen_loss.numpy(), disc_loss.numpy())
+                        # print(pred_output.numpy(), real_output.numpy())
+                        
+                        # compute accuracy of argmax of discriminator predicted output
+                        disc_accuracy += (np.count_nonzero(pred_output < 0.5) + np.count_nonzero(real_output > 0.5)) / (X.shape[0] * X.shape[1] * 2)
 
-            if not validation_data == (): gen_real_loss, gen_accuracy = self.generator.evaluate(validation_data[0], validation_data[1], verbose=0)
-            else: gen_real_loss, gen_accuracy = self.generator.evaluate(X[0], Y[0], verbose=0)
-            
-            gen_losses.append(gen_loss.numpy())
-            gen_real_losses.append(gen_real_loss)
-            gen_accuracies.append(gen_accuracy)
-            disc_losses.append(disc_loss.numpy())
-            disc_accuracies.append(disc_accuracy)
-            
-            if epoch % print_interval == 0:
-                if validation_data == ():
-                    gen_real_loss = str(gen_real_loss) + ' *'
-                    gen_accuracy = str(gen_accuracy) + ' *'
+                    gradients_generator = gen_tape.gradient(gen_loss, self.generator.trainable_variables)
+                    generator_optimizer.apply_gradients(zip(gradients_generator, self.generator.trainable_variables))
 
-                preprocessing.debug_print([
-                    'epoch', f'{epoch:04}',
-                    ':\n              generator GAN loss :', f'{gen_loss.numpy():05.5f}',
-                    ' \n                  generator loss :', f'{gen_real_loss:05.5f}',
-                    ' \n              generator accuracy :', f'{gen_accuracy:05.5f}',
-                    ' \n          discriminator GAN loss :', f'{disc_loss.numpy():05.5f}',
-                    ' \n          discriminator accuracy :', f'{disc_accuracy:05.5f}'
-                ])
+                    gradients_discriminator = disc_tape.gradient(disc_loss, self.discriminator.trainable_variables)
+                    discriminator_optimizer.apply_gradients(zip(gradients_discriminator, self.discriminator.trainable_variables))
+
+                if not validation_data == (): gen_real_loss, gen_accuracy = self.generator.evaluate(validation_data[0], validation_data[1], verbose=0)
+                else: gen_real_loss, gen_accuracy = self.generator.evaluate(X[0], Y[0], verbose=0)
                 
-        if save:
-            self.save_model()
-    
-        if plot:
-            plt.plot(gen_losses, label='generator GAN loss')
-            plt.plot(disc_losses, label='discriminator GAN loss')
-            plt.plot(gen_real_losses, label='generator loss')
-            plt.title('GAN loss')
-            plt.ylabel('crossentropy loss')
-            plt.xlabel('epoch')
-            plt.legend()
-            plt.show()
-            
-            plt.plot(gen_accuracies, label='generator accuracy')
-            plt.plot(disc_accuracies, label='discriminator accuracy')
-            plt.title('GAN accuracy')
-            plt.ylabel('accuracy (0-1)')
-            plt.xlabel('epoch')
-            plt.legend()
-            plt.show()
+                gen_losses.append(gen_loss.numpy())
+                gen_real_losses.append(gen_real_loss)
+                gen_accuracies.append(gen_accuracy)
+                disc_losses.append(disc_loss.numpy())
+                disc_accuracies.append(disc_accuracy)
+                
+                if epoch % print_interval == 0:
+                    if validation_data == ():
+                        gen_real_loss = str(gen_real_loss) + ' *'
+                        gen_accuracy = str(gen_accuracy) + ' *'
+
+                    preprocessing.debug_print([
+                        'epoch', f'{epoch:04}',
+                        ':\n              generator GAN loss :', f'{gen_loss.numpy():05.5f}',
+                        ' \n                  generator loss :', f'{gen_real_loss:05.5f}',
+                        ' \n              generator accuracy :', f'{gen_accuracy:05.5f}',
+                        ' \n          discriminator GAN loss :', f'{disc_loss.numpy():05.5f}',
+                        ' \n          discriminator accuracy :', f'{disc_accuracy:05.5f}'
+                    ])
+                
+            if save:
+                self.generator.save_weights('models/generator.keras')
+                self.discriminator.save_weights('models/discriminator.keras')
+        
+            if plot:
+                plt.plot(gen_losses, label='generator GAN loss')
+                plt.plot(disc_losses, label='discriminator GAN loss')
+                plt.plot(gen_real_losses, label='generator loss')
+                plt.title('GAN loss')
+                plt.ylabel('crossentropy loss')
+                plt.xlabel('epoch')
+                plt.legend()
+                plt.show()
+                
+                plt.plot(gen_accuracies, label='generator accuracy')
+                plt.plot(disc_accuracies, label='discriminator accuracy')
+                plt.title('GAN accuracy')
+                plt.ylabel('accuracy (0-1)')
+                plt.xlabel('epoch')
+                plt.legend()
+                plt.show()
