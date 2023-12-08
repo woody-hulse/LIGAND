@@ -27,7 +27,7 @@ def compute_baselines(models, X, Y):
 def train(model, X, Y, epochs, batch_size=64, validation_split=0.2, graph=True, summary=True, loss='categorical_crossentropy'):
     debug_print(['training model'])
 
-    model.compile(loss=loss, optimizer=tf.keras.optimizers.legacy.Adam(), metrics=['accuracy'])
+    model.compile(loss=loss, optimizer=tf.keras.optimizers.Adam(), metrics=['accuracy'])
     model(X)
     if summary: model.summary()
     model.fit(X, Y, batch_size=batch_size, epochs=epochs, validation_split=validation_split)
@@ -48,7 +48,7 @@ def train_multiproc(model, X, Y, epochs, batch_size=16, validation_split=0.2):
     debug_print(['number of devices:', strategy.num_replicas_in_sync])
 
     with strategy.scope():
-        model.compile(loss='categorical_crossentropy', optimizer=tf.keras.optimizers.legacy.Adam())
+        model.compile(loss='categorical_crossentropy', optimizer=tf.keras.optimizers.Adam())
 
     mirrored_X = tf.convert_to_tensor(X)
     mirrored_Y = tf.convert_to_tensor(Y)
@@ -120,8 +120,41 @@ def activity_test(discriminator, rna, chromosome, start, end, view_length=23, bi
         plt.legend()
         plt.show()
     
-    return activity_scores
+    return activity_scores, moving_averages
 
+def perturbation_analysis(discriminator, chromosome, start, end, bind_site, rna, perturbation_length, base='N'):
+    RNA = rna
+    heatmap = np.zeros((len(RNA) - perturbation_length + 1,777))
+    _,original = activity_test(discriminator=discriminator,rna=RNA,chromosome=chromosome,start=start,end=end,bind_site=bind_site, plot=False)
+    middle = len(original)//2
+    orig_target_mean = np.mean(original[middle-20:middle+50])
+    perturbed_target_means = np.zeros(len(RNA) - perturbation_length + 1)
+    for i in range(0, len(RNA)-perturbation_length + 1):
+        perturbed_grna = list(RNA)
+        perturbed_grna[i:i + perturbation_length] = base * perturbation_length
+        perturbed_grna = ''.join(perturbed_grna)
+        _, averages = activity_test(discriminator=discriminator,rna=perturbed_grna,chromosome=chromosome,start=start,end=end,bind_site=bind_site, plot=False)
+        heatmap[i,:] = averages
+        perturbed_target_means[i] = (abs(np.mean(averages[middle-20:middle+50]) - orig_target_mean)/orig_target_mean)
+    
+    plt.figure(1)
+    x = np.arange(start + 23, end - 23 + 1)
+    plt.imshow(heatmap, cmap='inferno', origin='lower', aspect='auto', extent=(min(x), max(x), 0, len(RNA)- perturbation_length + 1))
+    plt.colorbar(label='Activity Score')
+    plt.xlabel('DNA Position')
+    plt.ylabel(f'gRNA Perturbation Index (Length {perturbation_length}, Base {base})')
+    plt.yticks(np.arange(0, len(RNA)-perturbation_length + 1))
+    plt.grid(axis='y', linestyle='solid', alpha=0.7)
+    plt.title('Perturbation Analysis Heatmap')
+    plt.show()
+
+    plt.figure(2)
+    x = np.arange(0, len(RNA)- perturbation_length + 1)
+    plt.bar(x, perturbed_target_means, color='maroon', width=.4)
+    plt.xlabel(f'gRNA Perturbation Index (Length {perturbation_length}, Base {base})')
+    plt.ylabel('Percent Difference In Activity Score at Target vs Original')
+    plt.title('Perturbation Index vs Effect on Target Bind Activity Percent Change')
+    plt.show()
 
 def main(load_data=False):
     if load_data:
@@ -173,7 +206,7 @@ def main(load_data=False):
               epochs=50, 
               validation_data=(seqs_val, grna_val), 
               print_interval=1, summary=True, plot=True,
-              save=True, load=False)
+              save=False, load=False)
     
     # discriminator sliding window
     preprocessing.read_genome()
@@ -184,9 +217,20 @@ def main(load_data=False):
         start=7080001 - 400,
         end=7080023 + 400,
         bind_site=7080001)
-
+    
+    for base in ['A', 'G', 'C', 'T']:
+        for perturb_len in [1,3,5]:
+            perturbation_analysis(discriminator=gan.discriminator,
+                rna='GAATGGGAGAGAATATCACT',
+                chromosome='18',
+                start=7080001 - 400,
+                end=7080023 + 400,
+                bind_site=7080001,
+                perturbation_length=perturb_len,
+                base=base)
+    
 
 if __name__ == '__main__':
     os.system('clear')
 
-    main(True)
+    main(False)

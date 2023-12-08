@@ -231,11 +231,11 @@ def extract_data(path=GRNA_PATH):
     return shuffled_df
 
 EFFICACY_PATHS= {
-    'hct':'data/ontar/hct116.csv',
-    'hek':'data/ontar/hek293t.csv',
-    'hela':'data/ontar/hela.csv',
-    'hl60':'data/ontar/hl60.csv',
-    'offtar_off':'data/offtar_off.csv',
+    'hct':'data/efficacy/ontar/hct116.csv',
+    'hek':'data/efficacy/ontar/hek293t.csv',
+    'hela':'data/efficacy/ontar/hela.csv',
+    'hl60':'data/efficacy/ontar/hl60.csv',
+    'offtar_off':'data/efficacy/offtar_off.csv',
 }
 EFFICACY_MAP = {}
 gRNA = []

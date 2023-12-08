@@ -159,8 +159,8 @@ class TestGAN(tf.keras.Model):
             print()
         
         debug_print(['training GAN'])
-        generator_optimizer = tf.keras.optimizers.legacy.Adam(learning_rate)
-        discriminator_optimizer = tf.keras.optimizers.legacy.Adam(learning_rate)
+        generator_optimizer = tf.keras.optimizers.Adam(learning_rate)
+        discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate)
 
         mean_probs = np.full(Y[0].shape, .25)
         
