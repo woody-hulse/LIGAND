@@ -12,9 +12,9 @@ from models import *
 
 
 def discriminator_loss(real_output, pred_output, mismatch_output):
-    lambda1 = 0.2
+    lambda1 = 0.4
     lambda2 = 0.2
-    lambda3 = 0.6
+    lambda3 = 0.4
     # BC(1, D(g_t, d_t))
     real_loss = tf.keras.losses.BinaryCrossentropy()(tf.ones_like(real_output), real_output)
     # BC(0, D(G(d_t), d_t))
@@ -125,7 +125,7 @@ class TestGAN(tf.keras.Model):
         self.generator = ActorTransformer1(input_shape, output_shape, num_transformers=8, hidden_size=64)
         self.generator.build((1,) + input_shape)
         # self.discriminator = TestDiscriminator()
-        self.discriminator = CriticTransformer1(input_shape, num_transformers=8, hidden_size=64)
+        self.discriminator = ConvDiscriminator()
         test_data = [np.zeros((1,) + input_shape), np.zeros((1,) + output_shape)]
         self.discriminator(test_data)
         

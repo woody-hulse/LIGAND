@@ -102,15 +102,26 @@ def generate_candidate_grna(gan, rna, chromosome, start, end, a=400, view_length
         
         X[n] = epigenomic_seq
         
-    candidate_grna = gan.generate(X[:-1])
-    candidate_grna = tf.concat([candidate_grna, np.expand_dims(rna, axis=0)], axis=0)
+    candidate_grna = gan.generate(X)
+    filtered_candidate_grna = []
+    candidate_grna_set = set()
+    for i in range(candidate_grna.shape[0]):
+        grna = preprocessing.str_bases(candidate_grna[i])
+        if grna in candidate_grna_set:
+            continue
+        else:
+            filtered_candidate_grna.append(candidate_grna[i])
+            candidate_grna_set.add(grna)
+    print(candidate_grna_set)
+    filtered_candidate_grna = np.array(filtered_candidate_grna)
+    
     
     debug_print(['generating candidate grna for', seq, ':'])
     debug_print(['      [correct grna]', preprocessing.str_bases(rna)])
     for grna in candidate_grna:
         debug_print(['     ', preprocessing.str_bases(grna)])
     
-    activity_test(gan, candidate_grna, chromosomes, starts, ends, a, view_length, plot, num_seqs, True)
+    activity_test(gan, filtered_candidate_grna, chromosomes, starts, ends, a, view_length, plot, filtered_candidate_grna.shape[0], True)
 
 
 
@@ -171,7 +182,7 @@ def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, p
         activity_scores = []
         step = 1
         for i in range(0, end - start - view_length, step):
-            if gan.discriminator.name == 'conv_discriminator':
+            if gan.discriminator.name == 'conv_discriminator' or gan.discriminator.name == 'critic_transformer_1':
                 activity_score = gan.discriminator([
                     np.expand_dims(X[n][i:i+view_length], axis=0), 
                     np.expand_dims(real_Yi[n], axis=0)
@@ -368,10 +379,10 @@ def main(load_data=False):
     train(gan.discriminator, [seqs, grna], np.ones(len(seqs)), epochs=0, graph=False, summary=False)
     gan.train(batched_seqs_train, 
               batched_grna_train, 
-              epochs=10, 
+              epochs=0, 
               validation_data=(seqs_val, grna_val), 
-              print_interval=1, summary=True, plot=True,
-              save=True, load=False)
+              print_interval=1, summary=True, plot=False,
+              save=False, load=True)
     
     # discriminator sliding window
     rnas, chromosomes, starts, ends = preprocessing.get_activity_tests(df, batch_size, load_data)
