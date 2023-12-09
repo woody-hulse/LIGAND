@@ -10,7 +10,9 @@ import pandas as pd
 
 import tensorflow as tf
 
+from utils import *
 
+# Layers
 class Transformer(tf.keras.layers.Layer):
     def __init__(self, num_heads, head_size, ff_dim, dropout=0.1, **kwargs):
         super(Transformer, self).__init__(**kwargs)
@@ -41,8 +43,28 @@ class Transformer(tf.keras.layers.Layer):
         ffn_output = self.ffn(out1)
         ffn_output = self.dropout2(ffn_output, training=training)
         return self.layernorm2(out1 + ffn_output)
-    
+   
+# Generators
+class ActorMLP(tf.keras.Model):
+    def __init__(self, output_shape, name='test_generator', **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.flatten = tf.keras.layers.Flatten()
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(32, activation='relu')
+        self.dense3 = tf.keras.layers.Dense(output_shape[0] * 4, activation='relu')
+        self.reshape = tf.keras.layers.Reshape((output_shape[0], 4))
+        self.out = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(4, activation='softmax'))
 
+    def call(self, x):
+        x = self.flatten(x)
+        x = self.dense1(x)
+        x = self.dense2(x)
+        x = self.dense3(x)
+        x = self.reshape(x)
+        x = self.out(x)
+        
+        return x
+    
 class ActorTransformer1(tf.keras.Model):
     def __init__(self, input_shape, output_shape, num_transformers=3, hidden_size=32, name='actor_transformer_1'):
         super().__init__(name=name)
@@ -67,39 +89,6 @@ class ActorTransformer1(tf.keras.Model):
     def predict(self, x):
         return self.call(x)
     
-
-class CriticTransformer1(tf.keras.Model):
-    def __init__(self, input_shape, num_transformers=3, hidden_size=32, name='critic_transformer_1'):
-        super().__init__(name=name)
-
-        self.transformers = tf.keras.Sequential([Transformer(8, 4, hidden_size) for _ in range(num_transformers)])
-        self.flatten = tf.keras.layers.Flatten()
-        self.dense1 = tf.keras.layers.Dense(hidden_size, activation='relu')
-        self.dense2 = tf.keras.layers.Dense(hidden_size, activation='relu')
-        self.dense3 = tf.keras.layers.Dense(1, activation='sigmoid')
-        
-    def preprocess_input(self, seqs, grna):
-        output_shape = (seqs.shape[0], seqs.shape[1], grna.shape[2])
-        pad_width = [(0, 0), (0, output_shape[1] - grna.shape[1]), (0, 0)]
-        padded_grna = np.pad(grna, pad_width, mode='constant', constant_values=0)
-        concat = np.concatenate([padded_grna, seqs], axis=2)
-        x = concat[..., np.newaxis]
-        return x
-
-    def call(self, x):
-        x = self.preprocess_input(*x)[:, :, :, 0]
-        x = self.transformers(x)
-        x = self.flatten(x)
-        x = self.dense1(x)
-        x = self.dense2(x)
-        x = self.dense3(x)
-        
-        return x
-
-    def predict(self, x):
-        return self.call(x)
-    
-
 class ActorConvDeconv(tf.keras.Model):
     def __init__(self, input_shape, output_shape, latent_size=(20 * 4 - 6), name='actor_conv_deconv'):
         super().__init__(name=name)
@@ -133,8 +122,7 @@ class ActorConvDeconv(tf.keras.Model):
 
     def predict(self, X):
         return self.call(X)
-    
-    
+      
 class ActorDense(tf.keras.Model):
     def __init__(self, input_shape, output_shape, reg=0.01, name='actor_dense'):
         super().__init__(name=name)
@@ -156,8 +144,99 @@ class ActorDense(tf.keras.Model):
 
     def predict(self, X):
         return self.call(X)
-    
 
+# Discriminators
+class CriticMLP(tf.keras.Model):
+    def __init__(self, name='test_discriminator', **kwargs):
+        super().__init__(name=name, **kwargs)
+        regularizer = tf.keras.regularizers.l2(0.0001)
+        self.flatten = tf.keras.layers.Flatten()
+        self.denseGRNA1 = tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=regularizer)
+        self.denseGRNA2 = tf.keras.layers.Dense(32, activation='relu', kernel_regularizer=regularizer)
+        self.denseSEQS1 = tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=regularizer)
+        self.denseSEQS2 = tf.keras.layers.Dense(32, activation='relu', kernel_regularizer=regularizer)
+        self.dense1 = tf.keras.layers.Dense(32, activation='relu', kernel_regularizer=regularizer)
+        self.dense2 = tf.keras.layers.Dense(1, activation='sigmoid', kernel_regularizer=regularizer)
+
+    def call(self, x):
+        x_seqs, x_grna = x
+
+        x_grna = self.flatten(x_grna)
+        x_grna = self.denseGRNA1(x_grna)
+        x_grna = self.denseGRNA2(x_grna)
+
+        x_seqs = self.flatten(x_seqs)
+        x_seqs = self.denseSEQS1(x_seqs)
+        x_seqs = self.denseSEQS2(x_seqs)
+
+        x = tf.concat([x_grna, x_seqs], axis=1)
+        x = self.dense1(x)
+        x = self.dense2(x)
+
+        return x
+
+class CriticConv(tf.keras.Model):
+    def __init__(self, input_shape=(23, 12, 1), name='conv_discriminator', **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.conv1 = tf.keras.layers.Conv2D(filters=64, kernel_size=(3, input_shape[2]), padding='valid', activation='relu')
+        self.flatten = tf.keras.layers.Flatten()
+        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(32, activation='relu')
+        self.dense3 = tf.keras.layers.Dense(1, activation='sigmoid')
+    
+    
+    def preprocess_input(self, seqs, grna):
+        output_shape = (seqs.shape[0], seqs.shape[1], grna.shape[2])
+        pad_width = [(0, 0), (0, output_shape[1] - grna.shape[1]), (0, 0)]
+        padded_grna = np.pad(grna, pad_width, mode='constant', constant_values=0)
+        concat = np.concatenate([padded_grna, seqs], axis=2)
+        x = concat[..., np.newaxis]
+        return x
+        
+
+    def call(self, x):
+        x = self.preprocess_input(*x)
+        x = self.conv1(x)
+        x = self.flatten(x)
+        x = self.dense1(x)
+        x = self.dense2(x)
+        x = self.dense3(x)
+
+        return x
+    
+class CriticTransformer1(tf.keras.Model):
+    def __init__(self, input_shape, num_transformers=3, hidden_size=32, name='critic_transformer_1'):
+        super().__init__(name=name)
+
+        self.transformers = tf.keras.Sequential([Transformer(8, 4, hidden_size) for _ in range(num_transformers)])
+        self.flatten = tf.keras.layers.Flatten()
+        self.dense1 = tf.keras.layers.Dense(hidden_size, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(hidden_size, activation='relu')
+        self.dense3 = tf.keras.layers.Dense(1, activation='sigmoid')
+        
+    def preprocess_input(self, seqs, grna):
+        output_shape = (seqs.shape[0], seqs.shape[1], grna.shape[2])
+        pad_width = [(0, 0), (0, output_shape[1] - grna.shape[1]), (0, 0)]
+        padded_grna = np.pad(grna, pad_width, mode='constant', constant_values=0)
+        concat = np.concatenate([padded_grna, seqs], axis=2)
+        x = concat[..., np.newaxis]
+        return x
+
+    def call(self, x):
+        x = self.preprocess_input(*x)[:, :, :, 0]
+        x = self.transformers(x)
+        x = self.flatten(x)
+        x = self.dense1(x)
+        x = self.dense2(x)
+        x = self.dense3(x)
+        
+        return x
+
+    def predict(self, x):
+        return self.call(x)
+    
+    
+# Baselines
 class GuessBaseline():
     def __init__(self, Y, name="guess_baseline"):
         self.shape = Y.shape[1:]

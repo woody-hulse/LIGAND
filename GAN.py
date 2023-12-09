@@ -9,6 +9,7 @@ from tqdm import tqdm
 import preprocessing
 from preprocessing import debug_print
 from models import *
+from utils import *
 
 
 def discriminator_loss(real_output, pred_output, mismatch_output):
@@ -37,85 +38,12 @@ def generator_loss(pred, real, pred_output, mismatch_output):
     return gen * lambda1 + disc * lambda2 + disc_mismatch * lambda3
 
 
-class TestGenerator(tf.keras.Model):
-    def __init__(self, output_shape, name='test_generator', **kwargs):
-        super().__init__(name=name, **kwargs)
-        self.flatten = tf.keras.layers.Flatten()
-        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
-        self.dense2 = tf.keras.layers.Dense(32, activation='relu')
-        self.dense3 = tf.keras.layers.Dense(output_shape[0] * 4, activation='relu')
-        self.reshape = tf.keras.layers.Reshape((output_shape[0], 4))
-        self.out = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(4, activation='softmax'))
-
-    def call(self, x):
-        x = self.flatten(x)
-        x = self.dense1(x)
-        x = self.dense2(x)
-        x = self.dense3(x)
-        x = self.reshape(x)
-        x = self.out(x)
-        
-        return x
 
 
-class TestDiscriminator(tf.keras.Model):
-    def __init__(self, name='test_discriminator', **kwargs):
-        super().__init__(name=name, **kwargs)
-        regularizer = tf.keras.regularizers.l2(0.0001)
-        self.flatten = tf.keras.layers.Flatten()
-        self.denseGRNA1 = tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=regularizer)
-        self.denseGRNA2 = tf.keras.layers.Dense(32, activation='relu', kernel_regularizer=regularizer)
-        self.denseSEQS1 = tf.keras.layers.Dense(64, activation='relu', kernel_regularizer=regularizer)
-        self.denseSEQS2 = tf.keras.layers.Dense(32, activation='relu', kernel_regularizer=regularizer)
-        self.dense1 = tf.keras.layers.Dense(32, activation='relu', kernel_regularizer=regularizer)
-        self.dense2 = tf.keras.layers.Dense(1, activation='sigmoid', kernel_regularizer=regularizer)
-
-    def call(self, x):
-        x_seqs, x_grna = x
-
-        x_grna = self.flatten(x_grna)
-        x_grna = self.denseGRNA1(x_grna)
-        x_grna = self.denseGRNA2(x_grna)
-
-        x_seqs = self.flatten(x_seqs)
-        x_seqs = self.denseSEQS1(x_seqs)
-        x_seqs = self.denseSEQS2(x_seqs)
-
-        x = tf.concat([x_grna, x_seqs], axis=1)
-        x = self.dense1(x)
-        x = self.dense2(x)
-
-        return x
 
 
-class ConvDiscriminator(tf.keras.Model):
-    def __init__(self, input_shape=(23, 12, 1), name='conv_discriminator', **kwargs):
-        super().__init__(name=name, **kwargs)
-        self.conv1 = tf.keras.layers.Conv2D(filters=64, kernel_size=(3, input_shape[2]), padding='valid', activation='relu')
-        self.flatten = tf.keras.layers.Flatten()
-        self.dense1 = tf.keras.layers.Dense(64, activation='relu')
-        self.dense2 = tf.keras.layers.Dense(32, activation='relu')
-        self.dense3 = tf.keras.layers.Dense(1, activation='sigmoid')
-    
-    
-    def preprocess_input(self, seqs, grna):
-        output_shape = (seqs.shape[0], seqs.shape[1], grna.shape[2])
-        pad_width = [(0, 0), (0, output_shape[1] - grna.shape[1]), (0, 0)]
-        padded_grna = np.pad(grna, pad_width, mode='constant', constant_values=0)
-        concat = np.concatenate([padded_grna, seqs], axis=2)
-        x = concat[..., np.newaxis]
-        return x
-        
 
-    def call(self, x):
-        x = self.preprocess_input(*x)
-        x = self.conv1(x)
-        x = self.flatten(x)
-        x = self.dense1(x)
-        x = self.dense2(x)
-        x = self.dense3(x)
 
-        return x
 
 
 class GAN(tf.keras.Model):
@@ -124,10 +52,10 @@ class GAN(tf.keras.Model):
         self.shape = input_shape
         self.generator = generator
         self.discriminator = discriminator
-        # self.generator = TestGenerator(output_shape)
+        # self.generator = ActorMLP(output_shape)
         # self.generator = ActorTransformer1(input_shape, output_shape, num_transformers=8, hidden_size=64)
         self.generator.build((1,) + input_shape)
-        # self.discriminator = TestDiscriminator()
+        # self.discriminator = CriticMLP()
         # self.discriminator = CriticTransformer1(input_shape, num_transformers=8, hidden_size=64)
         test_data = [np.zeros((1,) + input_shape), np.zeros((1,) + output_shape)]
         self.discriminator(test_data)
@@ -198,7 +126,7 @@ class GAN(tf.keras.Model):
               summary=True, plot=True,
               save=True, load=False,
               name='test_gan'):
-        
+                
         if load:
             self.load_model()
             return
@@ -316,8 +244,8 @@ class GAN(tf.keras.Model):
 
 class MLP_GAN(GAN):
     def __init__(self, input_shape, output_shape, name='mlp_gan', **kwargs):
-        generator = TestGenerator(output_shape)
-        discriminator = TestDiscriminator()
+        generator = ActorMLP(output_shape)
+        discriminator = CriticMLP()
 
         super().__init__(input_shape, output_shape, name=name, 
                          generator=generator, discriminator=discriminator, **kwargs)
@@ -325,7 +253,15 @@ class MLP_GAN(GAN):
 class Conv_GAN(GAN):
     def __init__(self, input_shape, output_shape, name='conv_gan', **kwargs):
         generator = ActorConvDeconv(input_shape, output_shape)
-        discriminator = ConvDiscriminator()
+        discriminator = CriticConv()
+
+        super().__init__(input_shape, output_shape, name=name, 
+                         generator=generator, discriminator=discriminator, **kwargs)
+        
+class Trans_Conv_GAN(GAN):
+    def __init__(self, input_shape, output_shape, name='trans_conv_gan', **kwargs):
+        generator = ActorTransformer1(input_shape, output_shape, num_transformers=8, hidden_size=64)
+        discriminator = CriticConv()
 
         super().__init__(input_shape, output_shape, name=name, 
                          generator=generator, discriminator=discriminator, **kwargs)

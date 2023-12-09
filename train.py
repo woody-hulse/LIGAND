@@ -15,7 +15,8 @@ from preprocessing import debug_print
 
 from models import *
 from GAN import *
-from metrics import *
+from analysis import *
+from utils import *
 
 
 def compute_baselines(models, X, Y):
@@ -81,45 +82,6 @@ def train_multiproc(model, X, Y, epochs, batch_size=16, validation_split=0.2):
 
         debug_print(['epoch', epoch, 'loss :', average_loss])     
 
-def activity_test(discriminator, rna, chromosome, start, end, view_length=23, bind_site=-1, plot=True):
-    
-    def moving_average(x, w):
-        return np.convolve(x, np.ones(w), 'valid') / w
-
-    if bind_site == -1: bind_site = (start + end) // 2
-        
-    ohe_rna = np.concatenate([preprocessing.ohe_base(base) for base in rna], axis=0)
-    seq = preprocessing.fetch_genomic_sequence(chromosome, start, end)
-    ohe_seq = np.concatenate([preprocessing.ohe_base(base) for base in seq], axis=0)
-    epigenomic_signals = preprocessing.fetch_epigenomic_signals(chromosome, start, end)
-    epigenomic_seq = np.concatenate([ohe_seq, epigenomic_signals], axis=1)
-    
-    activity_scores = []
-    for i in range(end - start - view_length):
-        # if discriminator.name == 'conv_discriminator':
-            activity_score = discriminator([
-                np.expand_dims(epigenomic_seq[i:i+view_length], axis=0), 
-                np.expand_dims(ohe_rna, axis=0)
-            ])
-            activity_scores.append(activity_score[0][0])
-        # else:
-        #     pass # finish
-    activity_scores = np.array(activity_scores)
-    moving_averages = moving_average(activity_scores, 23)
-        
-    if plot:
-        x = np.arange(start + view_length, end - view_length + 1)
-        plt.figure(figsize=(8, 3))
-        plt.plot(x, moving_averages, label=rna)
-        # plt.plot(x, activity_scores[11:-11], label='test')
-        plt.axvline(x=bind_site, color='orange', linestyle='dotted', label='bind site')
-        plt.title('GRNA activity over chromosome ' + chromosome)
-        plt.xlabel('genomic position')
-        plt.ylabel('predicted activity (0-1)')
-        plt.legend()
-        plt.show()
-    
-    return activity_scores
 
 def main(load_data=False):
     if load_data:
