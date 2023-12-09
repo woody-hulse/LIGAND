@@ -265,3 +265,11 @@ class Trans_Conv_GAN(GAN):
 
         super().__init__(input_shape, output_shape, name=name, 
                          generator=generator, discriminator=discriminator, **kwargs)
+        
+class Trans_GAN(GAN):
+    def __init__(self, input_shape, output_shape, name='trans_gan', **kwargs):
+        generator = ActorTransformer1(input_shape, output_shape, num_transformers=4, hidden_size=128)
+        discriminator = CriticTransformer1()
+
+        super().__init__(input_shape, output_shape, name=name, 
+                         generator=generator, discriminator=discriminator, **kwargs)

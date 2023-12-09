@@ -9,6 +9,7 @@ import seaborn as sns
 import numpy as np
 
 from utils import *
+import preprocessing
 
 # def auc(x, y, model, curve = 'roc', file_path = 'metrics/model_roc.csv'):
 #     y_pred = model.predict(x)
@@ -76,9 +77,9 @@ def activity_test(discriminator, rna, chromosome, start, end, view_length=23, bi
 
     if bind_site == -1: bind_site = (start + end) // 2
         
-    ohe_rna = np.concatenate([preprocessing.ohe_base(base) for base in rna], axis=0)
+    ohe_rna = np.concatenate([ohe_base(base) for base in rna], axis=0)
     seq = preprocessing.fetch_genomic_sequence(chromosome, start, end)
-    ohe_seq = np.concatenate([preprocessing.ohe_base(base) for base in seq], axis=0)
+    ohe_seq = np.concatenate([ohe_base(base) for base in seq], axis=0)
     epigenomic_signals = preprocessing.fetch_epigenomic_signals(chromosome, start, end)
     epigenomic_seq = np.concatenate([ohe_seq, epigenomic_signals], axis=1)
     
