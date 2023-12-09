@@ -102,6 +102,7 @@ def filter_bases_lists(bases1, bases2):
 
 
 def ohe_base(base):
+    base = base.lower()
     ohe = np.zeros((1, 4))
     if base == 'a': ohe[0, 0] = 1
     if base == 'g': ohe[0, 1] = 1
@@ -118,6 +119,22 @@ def ohe_bases(bases_lists):
             if j >= len(bases_lists[0]): continue
             ohe[i, j] = ohe_base(base)
     return ohe
+
+
+def str_base(ohe):
+    ohe = ohe[:4]
+    if np.argmax(ohe) == 0: return 'a'
+    if np.argmax(ohe) == 1: return 'g'
+    if np.argmax(ohe) == 2: return 'c'
+    if np.argmax(ohe) == 3: return 't'
+    
+
+def str_bases(ohe):
+    bases = ''
+    for i in range(len(ohe)):
+        bases += str_base(ohe[i])
+    
+    return bases
 
 
 def tokenize_bases(bases_lists):
@@ -162,6 +179,35 @@ def load_data(seqs_path='data/seqs.npy', grna_path='data/grna.npy'):
     return seqs, grna
 
 
+def get_activity_tests(df, num_seqs, read=True):
+    if (read): read_genome()
+    
+    rnas = []
+    chromosomes = []
+    starts = []
+    ends = []
+    
+    exclude = set(['0X', '0Y', '0M'])
+    bases = set(['a', 'c', 'g', 't'])
+    shuffled_df = df.sample(frac=1).reset_index(drop=True)
+    for index, row in tqdm(shuffled_df.iterrows()):
+        if len(rnas) >= num_seqs: break
+        chromosome = row.iloc[3][3:].zfill(2)
+        if chromosome in exclude: continue
+        if row.iloc[0][0] == 'N': continue
+        start, end = row.iloc[4], row.iloc[5]
+        
+        fetch_genomic_sequence(chromosome, start, end).lower()
+        rna = row.iloc[0].lower()
+            
+        rnas.append(np.concatenate([ohe_base(base) for base in rna], axis=0))
+        chromosomes.append(chromosome)
+        starts.append(start)
+        ends.append(end)
+    
+    return np.array(rnas), chromosomes, starts, ends
+
+
 def get_train_test(df, length=1e4):
     read_genome()
 
@@ -172,13 +218,13 @@ def get_train_test(df, length=1e4):
     debug_print(['locating corresponding genome sequences'])
     for index, row in tqdm(df.iterrows()):
         if len(grna_list) >= length: break
-        chromosome = row[3][3:].zfill(2)
+        chromosome = row.iloc[3][3:].zfill(2)
         if chromosome in exclude: continue
-        if row[0][0] == 'N': continue
-        start, end = row[4], row[5]
+        if row.iloc[0][0] == 'N': continue
+        start, end = row.iloc[4], row.iloc[5]
         try:
             seq = fetch_genomic_sequence(chromosome, start, end).lower()
-            rna = row[0].lower()
+            rna = row.iloc[0].lower()
             if set(list(seq)).union(bases) == set(list(seq)) and \
                set(list(rna)).union(bases) == set(list(rna)):
                    

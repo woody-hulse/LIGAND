@@ -2,6 +2,8 @@ import tensorflow as tf
 import numpy as np
 
 import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set_theme(style="darkgrid")
 from tqdm import tqdm
 
 import preprocessing
@@ -9,14 +11,17 @@ from preprocessing import debug_print
 from models import *
 
 
-def discriminator_loss(real_output, pred_output):
-    lambda1 = 0.5
-    lambda2 = 0.5
+def discriminator_loss(real_output, pred_output, mismatch_output):
+    lambda1 = 0.3
+    lambda2 = 0.3
+    lambda3 = 1.3
     # BC(1, D(g_t, d_t))
     real_loss = tf.keras.losses.BinaryCrossentropy()(tf.ones_like(real_output), real_output)
-    # BC(0, D(G(d_t), d_t)) + BC(0, D(g_t, d_rand))
+    # BC(0, D(G(d_t), d_t))
     fake_loss = tf.keras.losses.BinaryCrossentropy()(tf.zeros_like(pred_output), pred_output)
-    total_loss = real_loss * lambda1 + fake_loss * lambda2
+    # BC(0, D(g_t, d_rand))
+    mismatch_loss = tf.keras.losses.BinaryCrossentropy()(tf.zeros_like(mismatch_output), mismatch_output)
+    total_loss = real_loss * lambda1 + fake_loss * lambda2 + mismatch_loss * lambda3
     return total_loss
 
 def generator_loss(pred, real, pred_output, mismatch_output):
@@ -92,6 +97,7 @@ class ConvDiscriminator(tf.keras.Model):
         self.dense2 = tf.keras.layers.Dense(32, activation='relu')
         self.dense3 = tf.keras.layers.Dense(1, activation='sigmoid')
     
+    
     def preprocess_input(self, seqs, grna):
         output_shape = (seqs.shape[0], seqs.shape[1], grna.shape[2])
         pad_width = [(0, 0), (0, output_shape[1] - grna.shape[1]), (0, 0)]
@@ -126,15 +132,32 @@ class TestGAN(tf.keras.Model):
     
     def save_model(self):
         debug_print(['saving GAN'])
-        self.generator.save('models/generator.keras')
-        self.discriminator.save('models/discriminator.keras')
+        self.generator.save_weights('models/generator.weights.h5')
+        self.discriminator.save_weights('models/discriminator.weights.h5')
     
     
     def load_model(self):
         debug_print(['loading GAN'])
-        self.generator = tf.keras.models.load_model('models/generator.keras')
-        self.discriminator = tf.keras.models.load_model('models/discriminator.keras')
+        self.generator.load_weights('models/generator.weights.h5')
+        self.discriminator.load_weights('models/discriminator.weights.h5')
+        
     
+    def generate(self, seqs):
+        # introduce noise
+        seqs += tf.random.normal(seqs.shape) * 0.1
+        return self.generator(seqs)
+    
+    
+    def get_real_Yi(self, pred_Yi, pred, real):
+        real_Yi = pred_Yi.numpy()
+
+        # define real_Yi (g_t) as the corrected probabilities from pred_Yi
+        for m in range(real_Yi.shape[0]):
+            for n in range(real_Yi.shape[1]):
+                real_Yi[m][n][pred[m][n]], real_Yi[m][n][real[m][n]] = real_Yi[m][n][real[m][n]], real_Yi[m][n][pred[m][n]]
+                
+        return real_Yi
+        
     
     def train(self, 
               X, Y, 
@@ -167,6 +190,7 @@ class TestGAN(tf.keras.Model):
         gen_losses = []
         gen_real_losses = []
         gen_accuracies = []
+        gen_confidence = []
         disc_losses = []
         disc_accuracies = []
         
@@ -195,24 +219,27 @@ class TestGAN(tf.keras.Model):
                     pred_Yi = self.generator(X[i])
                     pred = np.argmax(pred_Yi, axis=2)
                     real = np.argmax(Y[i], axis=2)
-                    real_Yi = pred_Yi.numpy()
-
-                    # define real_Yi (g_t) as the corrected probabilities from pred_Yi
-                    for m in range(Y[i].shape[0]):
-                        for n in range(Y[i].shape[1]):
-                            real_Yi[m][n][pred[m][n]], real_Yi[m][n][real[m][n]] = real_Yi[m][n][real[m][n]], real_Yi[m][n][pred[m][n]]
+                    real_Yi = self.get_real_Yi(pred_Yi, pred, real)
                     
-                    # get the discriminator output for different permutations of 
+                    # get the real (ground truth) and pred (generator) discriminator outputs
                     real_output = self.discriminator([X[i], real_Yi])
                     pred_output = self.discriminator([X[i], pred_Yi])
-                    mismatch_output = self.discriminator([X[np.random.randint(0, len(X))], Y[i]])
+                    
+                    # get the discriminator output for different permutations of seqs
+                    mismatch_output_1 = self.discriminator([X[np.random.randint(0, len(X))], Y[i]])
+                    indices = list(range(0, len(X[i])))
+                    np.random.shuffle(indices)
+                    mismatch_output_2 = self.discriminator([X[i][indices], Y[i]])
+                    np.random.shuffle(indices)
+                    mismatch_output_3 = self.discriminator([X[i][indices], pred_Yi])
+                    mismatch_output = tf.concat([mismatch_output_1, mismatch_output_2, mismatch_output_3], axis=0)
                     gen_mismatch_output = self.discriminator([X[np.random.randint(0, len(X))], pred_Yi])
 
                     # compute loss:
                     # G_loss = lambda1 * BC(g_t, G(d_t)) + lambda2 * BC(1, D(G(d_t), d_t)) + lambda3 * BC(0, D(G(d_t), d_rand))
                     gen_loss = generator_loss(pred_Yi, Y[i], pred_output, gen_mismatch_output)
                     # D_loss = lambda1 * BC(1, D(g_t, d_t)) + lambda2 * (BC(0, D(G(d_t), d_t)) + BC(0, D(g_t, d_rand)))
-                    disc_loss = discriminator_loss(real_output, tf.concat([pred_output, mismatch_output], axis=0))
+                    disc_loss = discriminator_loss(real_output, pred_output, mismatch_output)
                     # print(gen_loss.numpy(), disc_loss.numpy())
                     # print(pred_output.numpy(), real_output.numpy())
                     
