@@ -82,7 +82,7 @@ def train_multiproc(model, X, Y, epochs, batch_size=16, validation_split=0.2):
 
 
 
-def generate_candidate_grna(gan, chromosome, start, end, a=400, view_length=23, num_seqs=4, plot=True):
+def generate_candidate_grna(gan, rna, chromosome, start, end, a=400, view_length=23, num_seqs=4, plot=True):
     
     chromosomes = [chromosome for _ in range(num_seqs)]
     starts = [start for _ in range(num_seqs)]
@@ -102,9 +102,11 @@ def generate_candidate_grna(gan, chromosome, start, end, a=400, view_length=23, 
         
         X[n] = epigenomic_seq
         
-    candidate_grna = gan.generate(X)
+    candidate_grna = gan.generate(X[:-1])
+    candidate_grna = tf.concat([candidate_grna, np.expand_dims(rna, axis=0)], axis=0)
     
     debug_print(['generating candidate grna for', seq, ':'])
+    debug_print(['      [correct grna]', preprocessing.str_bases(rna)])
     for grna in candidate_grna:
         debug_print(['     ', preprocessing.str_bases(grna)])
     
@@ -130,24 +132,25 @@ def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, p
     X_gen = np.zeros((len(rnas), view_length, 8))
     X = np.zeros((len(rnas), view_length + 2 * a, 8))
     
+    for n in range(num_seqs):
+        try:
+            seq = preprocessing.fetch_genomic_sequence(chromosomes[n], starts[n] - a, ends[n] + a).lower()
+            ohe_seq = np.concatenate([preprocessing.ohe_base(base) for base in seq], axis=0)
+            epigenomic_signals = preprocessing.fetch_epigenomic_signals(chromosomes[n], starts[n] - a, ends[n] + a)
+            epigenomic_seq = np.concatenate([ohe_seq, epigenomic_signals], axis=1)
+            if np.isnan(epigenomic_seq).any():
+                skip.append(n)
+                continue
+                
+            X[n] = epigenomic_seq
+            X_gen[n] = epigenomic_seq[a:a + view_length]
+        except Exception as e:
+            skip.append(n)
+            continue
+            
     if test_rna:
         real_Yi = np.array(rnas)
     else:
-        for n in range(num_seqs):
-            try:
-                seq = preprocessing.fetch_genomic_sequence(chromosomes[n], starts[n] - a, ends[n] + a).lower()
-                ohe_seq = np.concatenate([preprocessing.ohe_base(base) for base in seq], axis=0)
-                epigenomic_signals = preprocessing.fetch_epigenomic_signals(chromosomes[n], starts[n] - a, ends[n] + a)
-                epigenomic_seq = np.concatenate([ohe_seq, epigenomic_signals], axis=1)
-                if np.isnan(epigenomic_seq).any():
-                    skip.append(n)
-                    continue
-                
-                X[n] = epigenomic_seq
-                X_gen[n] = epigenomic_seq[a:a + view_length]
-            except:
-                skip.append(n)
-                continue
 
         pred_Yi = gan.generator(X_gen)
         pred = np.argmax(pred_Yi, axis=2)
@@ -365,14 +368,15 @@ def main(load_data=False):
     train(gan.discriminator, [seqs, grna], np.ones(len(seqs)), epochs=0, graph=False, summary=False)
     gan.train(batched_seqs_train, 
               batched_grna_train, 
-              epochs=0, 
+              epochs=10, 
               validation_data=(seqs_val, grna_val), 
-              print_interval=1, summary=True, plot=False,
-              save=False, load=True)
+              print_interval=1, summary=True, plot=True,
+              save=True, load=False)
     
     # discriminator sliding window
     rnas, chromosomes, starts, ends = preprocessing.get_activity_tests(df, batch_size, load_data)
     
+    '''
     activity_test(
         gan=gan,
         rnas=rnas,
@@ -393,15 +397,18 @@ def main(load_data=False):
             num_seqs=4,
             a=50
         )
+    '''
     
-    generate_candidate_grna(
-        gan=gan, 
-        chromosome=chromosomes[0], 
-        start=starts[0], 
-        end=ends[0], 
-        a=400,
-        num_seqs=4,
-        plot=True)
+    for i in range(len(rnas)):
+        generate_candidate_grna(
+            gan=gan, 
+            rna=rnas[i],
+            chromosome=chromosomes[i], 
+            start=starts[i], 
+            end=ends[i], 
+            a=50,
+            num_seqs=6,
+            plot=True)
 
 
 if __name__ == '__main__':

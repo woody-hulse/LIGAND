@@ -45,10 +45,8 @@ class Transformer(tf.keras.layers.Layer):
 
 class ActorTransformer1(tf.keras.Model):
     def __init__(self, input_shape, output_shape, num_transformers=3, hidden_size=32, name='actor_transformer_1'):
-        super().__init__()
+        super().__init__(name=name)
 
-        embedding_dim = 4
-        self.embedding_layer = tf.keras.layers.Embedding(input_dim=4, output_dim=embedding_dim, input_length=input_shape[0])
         self.transformers = tf.keras.Sequential([Transformer(8, 8, hidden_size) for _ in range(num_transformers)])
         self.flatten = tf.keras.layers.Flatten()
         self.dense1 = tf.keras.layers.Dense(hidden_size, activation='relu')
@@ -57,7 +55,6 @@ class ActorTransformer1(tf.keras.Model):
         self.dense3 = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(4, activation='softmax'))
 
     def call(self, x):
-        x = self.embedding_layer(x)
         x = self.transformers(x)
         x = self.flatten(x)
         x = self.dense1(x)
@@ -65,6 +62,38 @@ class ActorTransformer1(tf.keras.Model):
         x = self.reshape(x)
         x = self.dense3(x)
 
+        return x
+
+    def predict(self, x):
+        return self.call(x)
+    
+
+class CriticTransformer1(tf.keras.Model):
+    def __init__(self, input_shape, num_transformers=3, hidden_size=32, name='critic_transformer_1'):
+        super().__init__(name=name)
+
+        self.transformers = tf.keras.Sequential([Transformer(8, 4, hidden_size) for _ in range(num_transformers)])
+        self.flatten = tf.keras.layers.Flatten()
+        self.dense1 = tf.keras.layers.Dense(hidden_size, activation='relu')
+        self.dense2 = tf.keras.layers.Dense(hidden_size, activation='relu')
+        self.dense3 = tf.keras.layers.Dense(1, activation='sigmoid')
+        
+    def preprocess_input(self, seqs, grna):
+        output_shape = (seqs.shape[0], seqs.shape[1], grna.shape[2])
+        pad_width = [(0, 0), (0, output_shape[1] - grna.shape[1]), (0, 0)]
+        padded_grna = np.pad(grna, pad_width, mode='constant', constant_values=0)
+        concat = np.concatenate([padded_grna, seqs], axis=2)
+        x = concat[..., np.newaxis]
+        return x
+
+    def call(self, x):
+        x = self.preprocess_input(*x)[:, :, :, 0]
+        x = self.transformers(x)
+        x = self.flatten(x)
+        x = self.dense1(x)
+        x = self.dense2(x)
+        x = self.dense3(x)
+        
         return x
 
     def predict(self, x):
