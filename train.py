@@ -136,14 +136,23 @@ def main(load_data=False):
               save=True, load=True)
     
      # save metrics
-    save_roc(seqs_test, grna_test, gan.generator, file=f'models/{gan.name}/roc.csv')
+    # save_roc(seqs_test, grna_test, gan.generator, file=f'models/{gan.name}/roc.csv')
 
     # discriminator sliding window
     rnas, chromosomes, starts, ends = preprocessing.get_activity_tests(df, batch_size, load_data)
     
-    deviation_from_complement_dna(gan.generator, seqs_test, grna_test)
+    # deviation_from_complement_dna(gan.generator, seqs_test)
+
+
+    complement_activity_test(
+        gan=gan,
+        chromosome=chromosomes[0],
+        start=starts[0],
+        end=ends[0],
+        a=50)
     
     '''
+
     activity_test(
         gan=gan,
         rnas=rnas,
@@ -164,7 +173,6 @@ def main(load_data=False):
             num_seqs=4,
             a=50
         )
-    '''
     
     for i in range(len(rnas)):
         generate_candidate_grna(
@@ -176,6 +184,7 @@ def main(load_data=False):
             a=50,
             num_seqs=6,
             plot=True)
+    '''
 
 
 if __name__ == '__main__':

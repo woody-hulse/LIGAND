@@ -6,3 +6,5 @@ data/*
 GM12878/*
 models/*
 .DS_Store
+__pycache__/
+*.pyc

@@ -52,7 +52,17 @@ def generate_candidate_grna(gan, rna, chromosome, start, end, a=400, view_length
     for grna in candidate_grna:
         debug_print(['     ', preprocessing.str_bases(grna)])
     
-    activity_test(gan, filtered_candidate_grna, chromosomes, starts, ends, a, view_length, plot, filtered_candidate_grna.shape[0], True)
+    activity_test(
+        gan=gan, 
+        rnas=filtered_candidate_grna, 
+        chromosomes=chromosomes, 
+        starts=starts, 
+        ends=ends, 
+        a=a, 
+        view_length=view_length, 
+        plot=plot, 
+        num_seqs=filtered_candidate_grna.shape[0], 
+        test_rna=True)
 
 def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, plot=True, num_seqs=None, test_rna=False):
     if not num_seqs: num_seqs = len(rnas)
@@ -308,57 +318,133 @@ def graph_roc_curves(files):
     plt.show()
 
 
-def deviation_from_complement_dna(model, dna_sequences, target_sequences):
-    deviations = np.zeros_like(target_sequences[0])
+def deviation_from_complement_dna(model, dna_sequences):
+    deviations = np.zeros((len(dna_sequences), 20, 4))
 
     # Ensure X and Y have the same number of sequences
-    if len(dna_sequences) != len(target_sequences):
-        raise ValueError("The number of DNA sequences and target sequences must be the same")
-
-    # Add tqdm progress bar
-    for dna_seq, target_seq in tqdm(zip(dna_sequences, target_sequences), total=len(dna_sequences), desc='Calculating deviations'):
-        # Predict the model output
+    for dna_seq, _ in tqdm(dna_sequences, total=len(dna_sequences), desc='Calculating deviations'):
         prediction = model.predict(np.expand_dims(dna_seq, axis=0))[0]
 
-        # Extract only the DNA part (assuming the first 4 columns represent DNA)
         ohe_dna = dna_seq[:, :4]
 
         # Calculate the complement (A<->T, C<->G) using vectorized operation
         complement_dna = ohe_dna[:20, [3, 2, 1, 0]]
 
-        # Calculate deviation
-        deviation = np.abs(prediction[:20] - complement_dna)
+        deviation = (prediction - complement_dna)
         deviations += deviation
-    
-    # Average the deviations
+
+    # Normalize
     deviations /= len(dna_sequences)
 
-    # Concat the average deviation to the end of the matrix
-    deviations = np.concatenate([deviations, np.mean(deviations, axis=1, keepdims=True)], axis=1)
-    debug_print(['shape', deviations.shape, 'deviations:', deviations])
+    # Concatenate the average deviations to the end of the matrix
+    average_per_position = np.mean(deviations, axis=1, keepdims=True)
+    graph_deviations = np.concatenate([deviations, average_per_position], axis=1)
 
+    average_per_nucleotide = np.mean(graph_deviations, axis=0, keepdims=True)
+    graph_deviations = np.concatenate([graph_deviations, average_per_nucleotide], axis=0)
+    debug_print(['shape', graph_deviations.shape])
 
     # Create a figure and axis
     fig, ax = plt.subplots(figsize=(10, 8))  # You can adjust the figure size as needed
 
     # Create a heatmap
-    sns.heatmap(deviations, annot=True, ax=ax, cmap='viridis')
+    sns.heatmap(graph_deviations, annot=True, ax=ax, cmap='viridis')
 
     # Set x-axis and y-axis labels
     ax.set_xlabel('Nucleotides')
     ax.set_ylabel('Position')
 
-    # Optionally, set the x-axis ticks to represent nucleotides
-    # ax.set_xticks(range(5))  # Set 5 tick locations
     ax.set_xticklabels(['A', 'C', 'G', 'T', 'Average'])
-
-    # Optionally, adjust the y-axis ticks to show positions
-    ax.set_yticklabels(np.arange(1, len(deviations) + 1))
-
+    position_labels = list(np.arange(1, len(deviations) + 1)) + ['Avg per Nucleotide']
+    ax.set_yticklabels(position_labels)
     # Show the plot
     plt.show()
 
     return deviations
+
+def deviation_from_complement_dna_single_strand(model, dna_seq):
+
+    prediction = model.predict(np.expand_dims(dna_seq, axis=0))[0]
+
+    ohe_dna = dna_seq[:, :4]
+
+    # Calculate the complement (A<->T, C<->G) using vectorized operation
+    complement_dna = ohe_dna[:20, [3, 2, 1, 0]]
+
+    deviation = (prediction - complement_dna)
+    average_per_nucleotide = np.mean(deviation, axis=0, keepdims=True)
+    graph_deviations = np.concatenate([deviation, average_per_nucleotide], axis=0)
+
+    # Create a figure and axis
+    fig, ax = plt.subplots(figsize=(10, 8))  # You can adjust the figure size as needed
+
+    # Create a heatmap
+    sns.heatmap(graph_deviations, annot=True, ax=ax, cmap='viridis')
+
+    # Set x-axis and y-axis labels
+    ax.set_xlabel('Nucleotides')
+    ax.set_ylabel('Position')
+
+    ax.set_xticklabels(['A', 'C', 'G', 'T'])
+    position_labels = list(np.arange(1, len(deviation) + 1)) + ['Avg']
+    ax.set_yticklabels(position_labels)
+    # Show the plot
+    plt.show()
+
+    return deviation
+
+
+
+
+def complement_activity_test(gan, chromosome, start, end, a=400, view_length=23, plot=True, num_seqs=None, test_rna=False):    
+    def moving_average(x, w):
+        return np.convolve(x, np.ones(w), 'valid') / w
+    
+    seq = preprocessing.fetch_genomic_sequence(chromosome, start - a, end + a).lower()
+    ohe_seq = np.concatenate([preprocessing.ohe_base(base) for base in seq], axis=0)
+    compl_seq = ohe_seq[:, [3, 2, 1, 0]]
+    epigenomic_signals = preprocessing.fetch_epigenomic_signals(chromosome, start - a, end + a)
+    epigenomic_seq = np.concatenate([ohe_seq, epigenomic_signals], axis=1)
+                
+    start -= a
+    end += a
+    
+    generator_scores = []
+    complement_scores = []
+    step = 1
+    for i in range(0, end - start - view_length, step):
+        epi_seq = epigenomic_seq[i:i+view_length]
+        if gan.discriminator.name == 'conv_discriminator' or gan.discriminator.name == 'critic_transformer_1':
+            generator_score = gan.discriminator([
+                np.expand_dims(epi_seq, axis=0), 
+                gan.generator(np.expand_dims(epi_seq, axis=0))
+            ])
+            
+            complement_score = gan.discriminator([
+                np.expand_dims(epi_seq, axis=0), 
+                np.expand_dims(compl_seq[i:i+view_length - 3], axis=0)
+            ])
+            for _ in range(step):
+                generator_scores.append(generator_score[0][0].numpy())
+                complement_scores.append(complement_score[0][0].numpy())
+        else:
+            pass # finish
+
+    generator_scores = np.array(generator_scores)
+    complement_scores = np.array(complement_scores)
+    gen_moving_averages = generator_scores[23:]# moving_average(generator_scores, 100)
+    compl_moving_averages = complement_scores[23:]# moving_average(complement_scores, 100)
+
+    x = np.arange(start + view_length, end - view_length + 4)[:len(gen_moving_averages)]
+    plt.plot(x, gen_moving_averages, label='generated')
+    plt.plot(x, compl_moving_averages, label='complement')
+    plt.legend()    
+   
+    plt.xlabel('genomic position')
+    plt.ylabel('predicted activity')
+    plt.show()
+    
+    return (gen_moving_averages, compl_moving_averages)
 
 if __name__ == '__main__':
     os.system('clear')
