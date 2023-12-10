@@ -13,9 +13,9 @@ from utils import *
 
 
 def discriminator_loss(real_output, pred_output, mismatch_output):
-    lambda1 = 0.2
+    lambda1 = 0.4
     lambda2 = 0.2
-    lambda3 = 0.6
+    lambda3 = 0.4
     # BC(1, D(g_t, d_t))
     real_loss = tf.keras.losses.BinaryCrossentropy()(tf.ones_like(real_output), real_output)
     # BC(0, D(G(d_t), d_t))
@@ -37,26 +37,13 @@ def generator_loss(pred, real, pred_output, mismatch_output):
     disc_mismatch = tf.keras.losses.BinaryCrossentropy()(tf.zeros_like(pred_output), mismatch_output)
     return gen * lambda1 + disc * lambda2 + disc_mismatch * lambda3
 
-
-
-
-
-
-
-
-
-
 class GAN(tf.keras.Model):
     def __init__(self, input_shape, output_shape, name='test_gan', generator = None, discriminator = None, **kwargs):
         super().__init__(name=name, **kwargs)
         self.shape = input_shape
         self.generator = generator
         self.discriminator = discriminator
-        # self.generator = ActorMLP(output_shape)
-        # self.generator = ActorTransformer1(input_shape, output_shape, num_transformers=8, hidden_size=64)
         self.generator.build((1,) + input_shape)
-        # self.discriminator = CriticMLP()
-        # self.discriminator = CriticTransformer1(input_shape, num_transformers=8, hidden_size=64)
         test_data = [np.zeros((1,) + input_shape), np.zeros((1,) + output_shape)]
         self.discriminator(test_data)
         
@@ -268,7 +255,7 @@ class Trans_Conv_GAN(GAN):
         
 class Trans_GAN(GAN):
     def __init__(self, input_shape, output_shape, name='trans_gan', **kwargs):
-        generator = ActorTransformer1(input_shape, output_shape, num_transformers=4, hidden_size=128)
+        generator = ActorTransformer1(input_shape, output_shape, num_transformers=4, hidden_size=64)
         discriminator = CriticTransformer1()
 
         super().__init__(input_shape, output_shape, name=name, 
