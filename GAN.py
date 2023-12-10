@@ -9,7 +9,6 @@ from tqdm import tqdm
 import preprocessing
 from preprocessing import debug_print
 from models import *
-from utils import *
 
 
 def discriminator_loss(real_output, pred_output, mismatch_output):
@@ -37,19 +36,21 @@ def generator_loss(pred, real, pred_output, mismatch_output):
     disc_mismatch = tf.keras.losses.BinaryCrossentropy()(tf.zeros_like(pred_output), mismatch_output)
     return gen * lambda1 + disc * lambda2 + disc_mismatch * lambda3
 
+
 class GAN(tf.keras.Model):
-    def __init__(self, input_shape, output_shape, name='test_gan', generator = None, discriminator = None, **kwargs):
+    def __init__(self, input_shape, output_shape, generator, discriminator, name='gan_parent', **kwargs):
         super().__init__(name=name, **kwargs)
         self.shape = input_shape
         self.generator = generator
-        self.discriminator = discriminator
         self.generator.build((1,) + input_shape)
+        self.discriminator = discriminator
         test_data = [np.zeros((1,) + input_shape), np.zeros((1,) + output_shape)]
         self.discriminator(test_data)
         
     
     def save_model(self, gen_losses, disc_losses, gen_real_losses, gen_accuracies, disc_accuracies):
         debug_print(['saving GAN'])
+        os.makedirs(f'models/{self.name}', exist_ok=True)
         self.generator.save_weights(f'models/{self.name}/generator.weights.h5')
         self.discriminator.save_weights(f'models/{self.name}/discriminator.weights.h5')
 
@@ -60,7 +61,7 @@ class GAN(tf.keras.Model):
             'gen_accuracies': gen_accuracies,
             'disc_accuracies': disc_accuracies
         })
-        df.to_csv(f'models/{self.name}/metrics.csv', index=False)    
+        df.to_csv(f'models/{self.name}/metrics.csv', index=False)
     
     def load_model(self):
         debug_print(['loading GAN'])
@@ -68,22 +69,22 @@ class GAN(tf.keras.Model):
         self.discriminator.load_weights(f'models/{self.name}/discriminator.weights.h5')
 
     def plot(self, gen_losses, disc_losses, gen_real_losses, gen_accuracies, disc_accuracies):
-            plt.plot(gen_losses, label='generator GAN loss')
-            plt.plot(disc_losses, label='discriminator GAN loss')
-            plt.plot(gen_real_losses, label='generator loss')
-            plt.title('GAN loss')
-            plt.ylabel('crossentropy loss')
-            plt.xlabel('epoch')
-            plt.legend()
-            plt.show()
-            
-            plt.plot(gen_accuracies, label='generator accuracy')
-            plt.plot(disc_accuracies, label='discriminator accuracy')
-            plt.title('GAN accuracy')
-            plt.ylabel('accuracy (0-1)')
-            plt.xlabel('epoch')
-            plt.legend()
-            plt.show()
+        plt.plot(gen_losses, label='generator GAN loss')
+        plt.plot(disc_losses, label='discriminator GAN loss')
+        plt.plot(gen_real_losses, label='generator loss')
+        plt.title('GAN loss')
+        plt.ylabel('crossentropy loss')
+        plt.xlabel('epoch')
+        plt.legend()
+        plt.show()
+        
+        plt.plot(gen_accuracies, label='generator accuracy')
+        plt.plot(disc_accuracies, label='discriminator accuracy')
+        plt.title('GAN accuracy')
+        plt.ylabel('accuracy (0-1)')
+        plt.xlabel('epoch')
+        plt.legend()
+        plt.show()
         
     
     def generate(self, seqs):
@@ -111,9 +112,8 @@ class GAN(tf.keras.Model):
               learning_rate=0.001, 
               print_interval=1, 
               summary=True, plot=True,
-              save=True, load=False,
-              name='test_gan'):
-                
+              save=True, load=False):
+        
         if load:
             self.load_model()
             return
@@ -220,43 +220,50 @@ class GAN(tf.keras.Model):
                     ' \n          discriminator GAN loss :', f'{disc_loss.numpy():05.5f}',
                     ' \n          discriminator accuracy :', f'{disc_accuracy:05.5f}'
                 ])
-       
+                
         if save:
-            os.makedirs(f'models/{self.name}', exist_ok=True)
             self.save_model(gen_losses, disc_losses, gen_real_losses, gen_accuracies, disc_accuracies)
     
         if plot:
             self.plot(gen_losses, disc_losses, gen_real_losses, gen_accuracies, disc_accuracies)
             
-
-class MLP_GAN(GAN):
+class MLPGAN(GAN):
     def __init__(self, input_shape, output_shape, name='mlp_gan', **kwargs):
-        generator = ActorMLP(output_shape)
-        discriminator = CriticMLP()
-
-        super().__init__(input_shape, output_shape, name=name, 
-                         generator=generator, discriminator=discriminator, **kwargs)
-                         
+        super().__init__(input_shape, output_shape, 
+                         ActorMLP(output_shape), 
+                         CriticMLP(), 
+                         name=name, **kwargs)
+        
 class Conv_GAN(GAN):
     def __init__(self, input_shape, output_shape, name='conv_gan', **kwargs):
-        generator = ActorConvDeconv(input_shape, output_shape)
-        discriminator = CriticConv()
-
-        super().__init__(input_shape, output_shape, name=name, 
-                         generator=generator, discriminator=discriminator, **kwargs)
+        super().__init__(input_shape, output_shape, 
+                         ActorConvDeconv(input_shape, output_shape), 
+                         CriticConv(), 
+                         name=name, **kwargs)
         
 class Trans_Conv_GAN(GAN):
     def __init__(self, input_shape, output_shape, name='trans_conv_gan', **kwargs):
-        generator = ActorTransformer1(input_shape, output_shape, num_transformers=8, hidden_size=64)
-        discriminator = CriticConv()
-
-        super().__init__(input_shape, output_shape, name=name, 
-                         generator=generator, discriminator=discriminator, **kwargs)
+        super().__init__(input_shape, output_shape, 
+                         ActorTransformer1(input_shape, output_shape, num_transformers=3, hidden_size=32),
+                         CriticConv(), 
+                         name=name, **kwargs)
+class Trans_Conv_GAN2(GAN):
+    def __init__(self, input_shape, output_shape, name='trans_conv_gan2', **kwargs):
+        super().__init__(input_shape, output_shape, 
+                         ActorTransformer1(input_shape, output_shape, num_transformers=8, hidden_size=64),
+                         CriticConv(), 
+                         name=name, **kwargs)
         
 class Trans_GAN(GAN):
     def __init__(self, input_shape, output_shape, name='trans_gan', **kwargs):
-        generator = ActorTransformer1(input_shape, output_shape, num_transformers=4, hidden_size=64)
-        discriminator = CriticTransformer1()
+        super().__init__(input_shape, output_shape, 
+                         ActorTransformer1(input_shape, output_shape, num_transformers=3, hidden_size=32),
+                         CriticTransformer1(output_shape, num_transformers=3, hidden_size=32),
+                         name=name, **kwargs)
 
-        super().__init__(input_shape, output_shape, name=name, 
-                         generator=generator, discriminator=discriminator, **kwargs)
+class Trans_GAN2(GAN):
+    def __init__(self, input_shape, output_shape, name='trans_gan2', **kwargs):
+        super().__init__(input_shape, output_shape, 
+                         ActorTransformer1(input_shape, output_shape, num_transformers=8, hidden_size=64),
+                         CriticTransformer1(output_shape, num_transformers=8, hidden_size=64),
+                         name=name, **kwargs)

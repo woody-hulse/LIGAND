@@ -88,7 +88,7 @@ class ActorTransformer1(tf.keras.Model):
 
     def predict(self, x):
         return self.call(x)
-    
+
 class ActorConvDeconv(tf.keras.Model):
     def __init__(self, input_shape, output_shape, latent_size=(20 * 4 - 6), name='actor_conv_deconv'):
         super().__init__(name=name)
@@ -174,7 +174,7 @@ class CriticMLP(tf.keras.Model):
         x = self.dense2(x)
 
         return x
-
+    
 class CriticConv(tf.keras.Model):
     def __init__(self, input_shape=(23, 12, 1), name='conv_discriminator', **kwargs):
         super().__init__(name=name, **kwargs)
