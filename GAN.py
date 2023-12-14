@@ -265,5 +265,19 @@ class Trans_GAN2(GAN):
     def __init__(self, input_shape, output_shape, name='trans_gan2', **kwargs):
         super().__init__(input_shape, output_shape, 
                          ActorTransformer1(input_shape, output_shape, num_transformers=8, hidden_size=64),
+                         CriticTransformer1(output_shape, num_transformers=3, hidden_size=32),
+                         name=name, **kwargs)
+        
+class Trans_GAN3(GAN):
+    def __init__(self, input_shape, output_shape, name='trans_gan3', **kwargs):
+        super().__init__(input_shape, output_shape, 
+                         ActorTransformer1(input_shape, output_shape, num_transformers=8, hidden_size=64),
+                         CriticTransformer1(output_shape, num_transformers=4, hidden_size=64),
+                         name=name, **kwargs)
+        
+class Trans_GAN4(GAN):
+    def __init__(self, input_shape, output_shape, name='trans_gan4', **kwargs):
+        super().__init__(input_shape, output_shape, 
+                         ActorTransformer1(input_shape, output_shape, num_transformers=12, hidden_size=64),
                          CriticTransformer1(output_shape, num_transformers=8, hidden_size=64),
                          name=name, **kwargs)

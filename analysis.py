@@ -87,6 +87,7 @@ def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, p
             seq = preprocessing.fetch_genomic_sequence(chromosomes[n], starts[n] - a, ends[n] + a).lower()
             ohe_seq = np.concatenate([preprocessing.ohe_base(base) for base in seq], axis=0)
             epigenomic_signals = preprocessing.fetch_epigenomic_signals(chromosomes[n], starts[n] - a, ends[n] + a)
+            debug_print([ohe_seq.shape, epigenomic_signals.shape])
             epigenomic_seq = np.concatenate([ohe_seq, epigenomic_signals], axis=1)
             if np.isnan(epigenomic_seq).any():
                 skip.append(n)
@@ -317,6 +318,81 @@ def graph_roc_curves(files):
     plt.legend(loc="lower right")
     plt.show()
 
+def graph_metrics(files):
+    sns.set_theme(style="darkgrid")
+
+    # Gen loss
+    for file in files:
+        df = pd.read_csv(file)
+        # file is of form 'models/mlp_gan/roc.csv'
+        model_name = file.split('/')[1]
+        plt.plot(df['gen_losses'], label=f'{model_name}', lw=2, alpha=1)
+    plt.xlabel('Epoch')
+    plt.ylabel('Generator Loss')
+    plt.title('Generator Loss')
+    plt.legend(loc="lower right")
+    plt.show()
+
+    # Disc loss
+    for file in files:
+        df = pd.read_csv(file)
+        # file is of form 'models/mlp_gan/roc.csv'
+        model_name = file.split('/')[1]
+        plt.plot(df['disc_losses'], label=f'{model_name}', lw=2, alpha=1)
+    plt.xlabel('Epoch')
+    plt.ylabel('Discriminator Loss')
+    plt.title('Discriminator Loss')
+    plt.legend(loc="lower right")
+    plt.show()
+
+    # Total loss
+    for file in files:
+        df = pd.read_csv(file)
+        # file is of form 'models/mlp_gan/roc.csv'
+        model_name = file.split('/')[1]
+        plt.plot(df['gen_losses'] + df['disc_losses'], label=f'{model_name}', lw=2, alpha=1)
+    plt.xlabel('Epoch')
+    plt.ylabel('Total Loss')
+    plt.title('Total Loss')
+    plt.legend(loc="lower right")
+    plt.show()
+
+    # Gen real loss
+    for file in files:
+        df = pd.read_csv(file)
+        # file is of form 'models/mlp_gan/roc.csv'
+        model_name = file.split('/')[1]
+        plt.plot(df['gen_real_losses'], label=f'{model_name}', lw=2, alpha=1)
+    plt.xlabel('Epoch')
+    plt.ylabel('Generator Real Loss')
+    plt.title('Generator Real Loss')
+    plt.legend(loc="lower right")
+    plt.show()
+
+    # Gen accuracy
+    for file in files:
+        df = pd.read_csv(file)
+        # file is of form 'models/mlp_gan/roc.csv'
+        model_name = file.split('/')[1]
+        plt.plot(df['gen_accuracies'], label=f'{model_name}', lw=2, alpha=1)
+    plt.xlabel('Epoch')
+    plt.ylabel('Generator Accuracy')
+    plt.title('Generator Accuracy')
+    plt.legend(loc="lower right")
+    plt.show()
+
+    # Disc accuracy
+    for file in files:
+        df = pd.read_csv(file)
+        # file is of form 'models/mlp_gan/roc.csv'
+        model_name = file.split('/')[1]
+        plt.plot(df['disc_accuracies'], label=f'{model_name}', lw=2, alpha=1)
+    plt.xlabel('Epoch')
+    plt.ylabel('Discriminator Accuracy')
+    plt.title('Discriminator Accuracy')
+    plt.legend(loc="lower right")
+    plt.show()
+
 
 def deviation_from_complement_dna(model, dna_sequences):
     deviations = np.zeros((len(dna_sequences), 20, 4))
@@ -393,9 +469,6 @@ def deviation_from_complement_dna_single_strand(model, dna_seq):
 
     return deviation
 
-
-
-
 def complement_activity_test(gan, chromosome, start, end, a=400, view_length=23, plot=True, num_seqs=None, test_rna=False):    
     def moving_average(x, w):
         return np.convolve(x, np.ones(w), 'valid') / w
@@ -450,12 +523,23 @@ if __name__ == '__main__':
     os.system('clear')
 
     graph_roc_curves([
-        'models/mlp_gan/roc.csv',
+        # 'models/mlp_gan/roc.csv',
         'models/conv_gan/roc.csv',
         'models/trans_conv_gan/roc.csv',
         'models/trans_gan/roc.csv',
         'models/trans_conv_gan2/roc.csv',
+        'models/trans_gan3/roc.csv'
     ])
+
+    graph_metrics([
+        # 'models/mlp_gan/metrics.csv',
+        'models/conv_gan/metrics.csv',
+        'models/trans_conv_gan/metrics.csv',
+        'models/trans_gan/metrics.csv',
+        'models/trans_conv_gan2/metrics.csv',
+        'models/trans_gan3/metrics.csv'
+    ])
+
     
 
     
