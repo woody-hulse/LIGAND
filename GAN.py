@@ -122,6 +122,7 @@ class TestGAN(tf.keras.Model):
     def __init__(self, input_shape, output_shape, name='test_gan', **kwargs):
         super().__init__(name=name, **kwargs)
         self.shape = input_shape
+        # self.generator = ActorVAE(input_shape, output_shape, latent_dim=12, num_transformers=4, hidden_size=64)
         self.generator = ActorTransformer1(input_shape, output_shape, num_transformers=8, hidden_size=64)
         self.generator.build((1,) + input_shape)
         # self.discriminator = TestDiscriminator()
@@ -205,8 +206,7 @@ class TestGAN(tf.keras.Model):
 
             for i in tqdm(range(X.shape[0]), desc='epoch {} / {} : confidence {:.2f}'.format(str(epoch).zfill(4), str(epochs).zfill(4), confidence)):
                 # add noise to generator input
-                noise = tf.random.normal(X[i].shape) * 0.01
-                generated_probs = self.generator(X[i] + noise)
+                generated_probs = self.generator(X[i])
 
                 # compute prediction confidence by deviation from mean prediction
                 confidence = tf.keras.losses.MeanSquaredError()(generated_probs, mean_probs) * 100

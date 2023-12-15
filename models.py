@@ -68,8 +68,58 @@ class ActorTransformer1(tf.keras.Model):
         return self.call(x)
     
 
+class ActorVAE(tf.keras.Model):
+    def __init__(self, input_shape, output_shape, latent_dim=32, num_transformers=3, hidden_size=32, name='actor_vae'):
+        super().__init__(name=name)
+
+        self.transformers = tf.keras.Sequential([Transformer(8, 8, hidden_size) for _ in range(num_transformers)])
+        self.flatten = tf.keras.layers.Flatten()
+        self.dense1 = tf.keras.layers.Dense(hidden_size, activation='relu')
+        self.dense_mean = tf.keras.layers.Dense(latent_dim)
+        self.dense_log_var = tf.keras.layers.Dense(latent_dim)
+
+        self.dense_decode1 = tf.keras.layers.Dense(hidden_size, activation='relu')
+        self.dense_decode2 = tf.keras.layers.Dense(output_shape[0] * output_shape[1], activation='relu')
+        self.reshape = tf.keras.layers.Reshape(output_shape)
+        self.dense_decode3 = tf.keras.layers.TimeDistributed(tf.keras.layers.Dense(4, activation='softmax'))
+
+        self.sampling_layer = tf.keras.layers.Lambda(self.sampling, output_shape=(latent_dim,))
+
+    def sampling(self, args):
+        mean, log_var = args
+        batch = tf.shape(mean)[0]
+        dim = tf.shape(mean)[1]
+        epsilon = tf.keras.backend.random_normal(shape=(batch, dim))
+        return mean + tf.exp(0 * log_var) * epsilon
+
+    def encode(self, x):
+        x = self.transformers(x)
+        x = self.flatten(x)
+        x = self.dense1(x)
+        mean = self.dense_mean(x)
+        log_var = self.dense_log_var(x)
+        return mean, log_var
+
+    def decode(self, z):
+        x = self.dense_decode1(z)
+        x = self.dense_decode2(x)
+        x = self.reshape(x)
+        x = self.dense_decode3(x)
+        return x
+
+    def call(self, x):
+        mean, log_var = self.encode(x)
+        z = self.sampling_layer([mean, log_var])
+        reconstructed = self.decode(z)
+        return reconstructed
+
+    def predict(self, x):
+        return self.call(x)
+    
+    
+
 class CriticTransformer1(tf.keras.Model):
-    def __init__(self, input_shape, num_transformers=3, hidden_size=32, name='critic_transformer_1'):
+    def __init__(self, num_transformers=3, hidden_size=32, name='critic_transformer_1'):
         super().__init__(name=name)
 
         self.transformers = tf.keras.Sequential([Transformer(8, 4, hidden_size) for _ in range(num_transformers)])
