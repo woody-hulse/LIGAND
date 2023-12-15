@@ -16,6 +16,7 @@ from preprocessing import debug_print
 
 from models import *
 from GAN import *
+from analysis import *
 
 
 def compute_baselines(models, X, Y):
@@ -23,7 +24,6 @@ def compute_baselines(models, X, Y):
         baseline_pred = model.predict(X)
         baseline_loss = tf.math.reduce_mean(tf.keras.losses.categorical_crossentropy(Y, baseline_pred))
         debug_print([model.name, 'loss:', baseline_loss.numpy()])
-
 
 def train(models, X, Y, epochs, batch_size=64, validation_split=0.2, graph=True, summary=True, loss='categorical_crossentropy'):
     debug_print(['training model'])
@@ -88,7 +88,6 @@ def train_multiproc(model, X, Y, epochs, batch_size=16, validation_split=0.2):
         average_loss = total_loss / num_batches
 
         debug_print(['epoch', epoch, 'loss :', average_loss])
-
 
 
 def generate_candidate_grna(gan, rna, chromosome, start, end, a=400, view_length=23, num_seqs=4, plot=True):
@@ -517,7 +516,7 @@ def main(load_data=False):
     train([gan.discriminator], [seqs, grna], np.ones(len(seqs)), epochs=0, graph=False, summary=False)
     gan.train(batched_seqs_train, 
               batched_grna_train, 
-              epochs=0, 
+              epochs=50, 
               validation_data=(seqs_val, grna_val), 
               print_interval=1, summary=True, plot=False,
               save=True, load=True)
@@ -531,6 +530,19 @@ def main(load_data=False):
                                      end=ends[0], 
                                      a=250,
                                      num_seqs=5)
+    
+    # save metrics
+    # save_roc(seqs_test, grna_test, gan.generator, file=f'models/{gan.name}/roc.csv')
+    
+    # deviation_from_complement_dna(gan.generator, seqs_test)
+
+
+    complement_activity_test(
+        gan=gan,
+        chromosome=chromosomes[0],
+        start=starts[0],
+        end=ends[0],
+        a=50)
     
     '''
     

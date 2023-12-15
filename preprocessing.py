@@ -1,7 +1,5 @@
 import csv
-import os
 from tqdm import tqdm
-import datetime
 import random
 import copy
 import numpy as np
@@ -9,6 +7,8 @@ import pandas as pd
 
 from Bio import SeqIO
 import pyBigWig
+
+from utils import *
 
 H3K4ME3_PATH = "data/h3k4me.bigWig" # https://drive.google.com/drive/u/0/folders/1nycERZkXh5Qiyy8HQE3Hk0pOez_UFECw
 RRBS_PATH = "data/methyl.bigBed"
@@ -19,14 +19,6 @@ REFERENCE_GENOME_PATH = 'data/GCF_000001405.26_GRCh38_genomic.fna' # https://www
 GRNA_PATH = 'data/hg_guide_info.csv' # https://www.ncbi.nlm.nih.gov/genome/guide/human/
 
 GENOME_SEQUENCES = {}
-def debug_print(statements=[], end='\n'):
-    ct = datetime.datetime.now()
-    print('[', str(ct)[:19], '] ', sep='', end='')
-    for statement in statements:
-        print(statement, end=' ')
-    print(end=end)
-
-
 def read_genome(path=REFERENCE_GENOME_PATH):
     debug_print(['loading genomic data from', path])
     for record in SeqIO.parse(path, 'fasta'):
@@ -101,56 +93,6 @@ def filter_bases_lists(bases1, bases2):
 
     return filter_bases1, filter_bases2
 
-
-def ohe_base(base):
-    base = base.lower()
-    ohe = np.zeros((1, 4))
-    if base == 'a': ohe[0, 0] = 1
-    if base == 'g': ohe[0, 1] = 1
-    if base == 'c': ohe[0, 2] = 1
-    if base == 't': ohe[0, 3] = 1
-    return ohe
-
-
-def ohe_bases(bases_lists):
-    debug_print(['one-hot encoding bases'])
-    ohe = np.zeros((len(bases_lists), len(bases_lists[0]), 4))
-    for i, bases_list in enumerate(bases_lists):
-        for j, base in enumerate(bases_list):
-            if j >= len(bases_lists[0]): continue
-            ohe[i, j] = ohe_base(base)
-    return ohe
-
-
-def str_base(ohe):
-    ohe = ohe[:4]
-    if np.argmax(ohe) == 0: return 'a'
-    if np.argmax(ohe) == 1: return 'g'
-    if np.argmax(ohe) == 2: return 'c'
-    if np.argmax(ohe) == 3: return 't'
-    
-
-def str_bases(ohe):
-    bases = ''
-    for i in range(len(ohe)):
-        bases += str_base(ohe[i])
-    
-    return bases
-
-
-def tokenize_bases(bases_lists):
-    debug_print(['tokenizing encoding bases'])
-    tokenized = np.zeros((len(bases_lists), len(bases_lists[0])))
-    for i, bases_list in enumerate(bases_lists):
-        for j, base in enumerate(bases_list):
-            if j >= len(bases_lists[0]): continue
-            if base == 'a': tokenized[i, j] = 0
-            if base == 'g': tokenized[i, j] = 1
-            if base == 'c': tokenized[i, j] = 2
-            if base == 't': tokenized[i, j] = 3
-    return tokenized
-
-
 def batch_data(data, batch_size):
     debug_print(['batching data'])
     output_length = data.shape[0] // batch_size
@@ -179,7 +121,6 @@ def load_data(seqs_path='data/seqs.npy', grna_path='data/grna.npy'):
         '\n                  gRNA: ', grna.shape])
     return seqs, grna
 
-
 def get_activity_tests(df, num_seqs, read=True):
     if (read): read_genome()
     
@@ -207,7 +148,6 @@ def get_activity_tests(df, num_seqs, read=True):
         ends.append(end)
     
     return np.array(rnas), chromosomes, starts, ends
-
 
 def get_train_test(df, length=1e4):
     read_genome()
@@ -252,7 +192,6 @@ def get_train_test(df, length=1e4):
 
     return seqs, grna
 
-
 def get_discriminator_train_test(seqs, grna):
     debug_print(['generating synthetic data'])
     length = seqs.shape[0]
@@ -274,13 +213,13 @@ def get_discriminator_train_test(seqs, grna):
     
     return X, Y
 
-
 def extract_data(path=GRNA_PATH):
     debug_print(['loading gRNA data from', path])
     df = pd.read_csv(path)
     shuffled_df = df.sample(frac=1).reset_index(drop=True)
     return shuffled_df
 
+# Efficacies
 EFFICACY_PATHS= {
     'hct':'data/ontar/hct116.csv',
     'hek':'data/ontar/hek293t.csv',
