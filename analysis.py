@@ -608,6 +608,63 @@ def complement_activity_test(gan, chromosome, start, end, a=400, view_length=23,
     
     return (gen_moving_averages, compl_moving_averages)
 
+def validate_against_efficacies(gan, plot = True):
+    preprocessing.populate_efficacy_map()
+    efficacies = []
+    for ((sgRNA, chromosome, start, end), efficacy) in preprocessing.EFFICACY_MAP.items():
+        seq = preprocessing.fetch_genomic_sequence(chromosome, start, end)
+        try:
+            seq = np.concatenate([ohe_base(base) for base in seq], axis=0)
+        except:
+            # debug_print(['skipping', chromosome, start, end])
+            continue
+        epi = preprocessing.fetch_epigenomic_signals(chromosome, start, end)
+        seq = np.concatenate([seq, epi], axis=1)
+        seq = np.expand_dims(seq, axis=0)
+        grna = np.concatenate([ohe_base(base) for base in sgRNA], axis=0)
+        grna = np.expand_dims(grna, axis=0)
+        X = [seq, grna]
+        
+        predicted = gan.discriminator(X)[0][0].numpy()
+        efficacies.append((chromosome, start, efficacy, predicted))
+
+    if plot:
+        debug_print(['plotting efficacy differences for n seqs:', len(efficacies)])
+        df = pd.DataFrame(efficacies, columns=['Chromosome', 'Start', 'TrueEfficacy', 'PredictedEfficacy'])
+
+        # # Get unique chromosomes
+        # chromosomes = df['Chromosome'].unique()
+
+        # # Plot data for each chromosome
+        # for i, chrom in enumerate(chromosomes):
+        #     chrom_df = df[df['Chromosome'] == chrom]
+
+        #     fig, axes = plt.subplots(1, 1, figsize=(8, 4))
+        #     axes.set_title(f'Chromosome {chrom}')
+        #     axes.set_xlabel('Position')
+        #     axes.set_ylabel('Efficacy')
+        #     axes.plot(chrom_df['Start'], chrom_df['TrueEfficacy'], label='True Efficacy')
+        #     axes.plot(chrom_df['Start'], chrom_df['PredictedEfficacy'], label='Predicted Efficacy')
+        #     axes.legend()
+        #     plt.show()
+
+        # Calculate the difference in efficacy
+        df['EfficacyDifference'] = df['PredictedEfficacy'] - df['TrueEfficacy']
+
+        # Create a histogram
+        plt.figure(figsize=(10, 6))
+        plt.hist(df['EfficacyDifference'], bins=20, color='skyblue', edgecolor='black')
+
+        # Adding labels and title
+        plt.xlabel('Difference in Efficacy (Predicted - True)')
+        plt.ylabel('Number of Occurrences')
+        plt.title('Distribution of Efficacy Differences')
+
+        # Show the plot
+        plt.show()
+
+    return efficacies
+
 if __name__ == '__main__':
     os.system('clear')
 

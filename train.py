@@ -126,17 +126,34 @@ def main(load_data=False):
     save_roc(seqs_test, grna_test, gan.generator, file=f'models/{gan.name}/roc.csv')
 
 
+    validate_against_efficacies(gan)
+
     ## Analysis
     rnas, chromosomes, starts, ends = preprocessing.get_activity_tests(df, 512, load_data)
-
     '''
+    activity_scores_avg = activity_test(
+        gan=gan,
+        rnas=rnas,
+        chromosomes=chromosomes,
+        starts=starts,
+        ends=ends,
+        a=500,
+        num_seqs=256,
+        plot=False)
+    
+    plt.figure(figsize=(8, 4))
+    plt.plot(activity_scores_avg)
+    plt.ylabel('average predicted activity')
+    plt.xlabel('genomic position')
+    plt.axvline(x=500, color='orange', linestyle='dotted', label='bind site')
+    plt.show()
+    
     best_five = candidate_grna_range(gan, 
                                      chromosome=chromosomes[0], 
                                      start=starts[0], 
                                      end=ends[0], 
                                      a=250,
                                      num_seqs=5)
-    
     deviation_from_complement_dna(gan.generator, seqs_test)
 
     perturbation_map(
@@ -155,23 +172,6 @@ def main(load_data=False):
         start=starts[0],
         end=ends[0],
         a=50)
-    
-    activity_scores_avg = activity_test(
-        gan=gan,
-        rnas=rnas,
-        chromosomes=chromosomes,
-        starts=starts,
-        ends=ends,
-        a=500,
-        num_seqs=256,
-        plot=False)
-    
-    plt.figure(figsize=(8, 4))
-    plt.plot(activity_scores_avg)
-    plt.ylabel('average predicted activity')
-    plt.xlabel('genomic position')
-    plt.axvline(x=500, color='orange', linestyle='dotted', label='bind site')
-    plt.show()
     
     for base in ['a', 'g', 'c', 't']:
         perturbation_analysis(

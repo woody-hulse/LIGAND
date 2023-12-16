@@ -4,6 +4,7 @@ import random
 import copy
 import numpy as np
 import pandas as pd
+import os
 
 from Bio import SeqIO
 import pyBigWig
@@ -24,7 +25,6 @@ def read_genome(path=REFERENCE_GENOME_PATH):
     for record in SeqIO.parse(path, 'fasta'):
         GENOME_SEQUENCES[record.id.split('.')[0]] = record.seq
 
-
 def fetch_genomic_sequence(chromosome, start, end, a=0):
     chromosome_id = f'NC_0000{chromosome}'
     genome_sequence = GENOME_SEQUENCES.get(chromosome_id)
@@ -33,7 +33,6 @@ def fetch_genomic_sequence(chromosome, start, end, a=0):
     else:
         raise ValueError(f'chromosome {chromosome_id} not found in the genome file.')
     
-
 def fetch_epigenomic_signals(chromosome, start, end, a=0):
     signals = np.zeros((end - start + 1 + 2 * a, 4))
     
@@ -79,7 +78,6 @@ def fetch_epigenomic_signals(chromosome, start, end, a=0):
     
     return signals
 
-
 def filter_bases_lists(bases1, bases2):
     debug_print(['filtering base sequences'])
     filter_bases1 = []
@@ -104,13 +102,11 @@ def batch_data(data, batch_size):
 
     return batched_data
 
-
 def train_val_test_split(data, train=0.7, val=0.2, test=0.1):
     length = len(data)
     return data[:int(train*length)], \
            data[int(train*length):int((train + val)*length)], \
            data[int((train + val)*length):int((train + val + test)*length)]
-
 
 def load_data(seqs_path='data/seqs.npy', grna_path='data/grna.npy'):
     debug_print(['loading preprocessed data'])
@@ -221,10 +217,10 @@ def extract_data(path=GRNA_PATH):
 
 # Efficacies
 EFFICACY_PATHS= {
-    'hct':'data/ontar/hct116.csv',
-    'hek':'data/ontar/hek293t.csv',
-    'hela':'data/ontar/hela.csv',
-    'hl60':'data/ontar/hl60.csv',
+    # 'hct':'data/ontar/hct116.csv',
+    # 'hek':'data/ontar/hek293t.csv',
+    # 'hela':'data/ontar/hela.csv',
+    # 'hl60':'data/ontar/hl60.csv',
     'offtar_off':'data/offtar_off.csv',
 }
 EFFICACY_MAP = {}
@@ -232,6 +228,8 @@ gRNA = []
 
 # Not using cell type right now
 def populate_efficacy_map():
+    read_genome()
+    debug_print(['populating efficacy map'])
     for cell_type in EFFICACY_PATHS:
         sgRNA_map = {}
         path = EFFICACY_PATHS[cell_type]
@@ -239,17 +237,30 @@ def populate_efficacy_map():
             csv_reader = csv.DictReader(csv_file)
 
             for row in csv_reader:
-                chromosome = row['Chromosome']
+                chromosome = row['Chromosome'][3:]
                 start = int(row['Start'])
                 end = int(row['End'])
                 sgRNA = ''
                 efficacy = 0
                 if cell_type == 'offtar_off':
+                    target_id = row['Target ID']
+                    
+                    # Get the row from offtar_on whose 'Target ID' matches target_id
+                    with open('data/offtar_on.csv', 'r') as offtar_on:
+                        matching_row = next((r for r in csv.DictReader(offtar_on) if r['Target ID'] == target_id), None)
+                        if matching_row:
+                            chromosome = matching_row['Chromosome'][3:]
+                            start = int(matching_row['Start'])
+                            end = int(matching_row['End'])
                     sgRNA = row['OT']
                     efficacy = float(row['Cleavage Frequency'])
                 else:
                     sgRNA = row['sgRNA']
                     efficacy = float(row['Normalized efficacy'])
+            
+                if (chromosome == 'X'): chromosome = '22'
+                if (len(chromosome) == 1): chromosome = '0' + chromosome
+
                 gRNA.append(sgRNA)
                 key_tuple = (sgRNA, chromosome, start, end)
                 sgRNA_map[key_tuple] = efficacy
@@ -268,3 +279,6 @@ def get_random_efficacy(targ_GRNA, chromosome, start, end):
         count +=1
     return key[0]
 
+if __name__ == '__main__':
+    os.system('clear')
+   
