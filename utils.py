@@ -17,7 +17,6 @@ def ohe_base(base):
     if base == 't': ohe[0, 3] = 1
     return ohe
 
-
 def ohe_bases(bases_lists):
     debug_print(['one-hot encoding bases'])
     ohe = np.zeros((len(bases_lists), len(bases_lists[0]), 4))
@@ -27,14 +26,12 @@ def ohe_bases(bases_lists):
             ohe[i, j] = ohe_base(base)
     return ohe
 
-
 def str_base(ohe):
     ohe = ohe[:4]
     if np.argmax(ohe) == 0: return 'a'
     if np.argmax(ohe) == 1: return 'g'
     if np.argmax(ohe) == 2: return 'c'
-    if np.argmax(ohe) == 3: return 't'
-    
+    if np.argmax(ohe) == 3: return 't'   
 
 def str_bases(ohe):
     bases = ''
@@ -42,7 +39,6 @@ def str_bases(ohe):
         bases += str_base(ohe[i])
     
     return bases
-
 
 def tokenize_bases(bases_lists):
     debug_print(['tokenizing encoding bases'])

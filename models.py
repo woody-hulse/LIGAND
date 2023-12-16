@@ -1,13 +1,4 @@
-import csv
-import os
-from tqdm import tqdm
-import datetime
-
-import math
-import random
 import numpy as np
-import pandas as pd
-
 import tensorflow as tf
 
 from utils import *
@@ -113,8 +104,6 @@ class ActorVAE(tf.keras.Model):
 
     def predict(self, x):
         return self.call(x)
-    
-    
 
 class ActorTransformer1(tf.keras.Model):
     def __init__(self, input_shape, output_shape, num_transformers=3, hidden_size=32, name='actor_transformer_1'):
@@ -304,7 +293,6 @@ class GuessBaseline():
     def predict(self, X):
         return self.call(X)
     
-
 class CenterBaseline():
     def __init__(self, Y, name="center_baseline"):
         self.shape = Y.shape[1:]
@@ -315,8 +303,7 @@ class CenterBaseline():
         return Y_pred
     
     def predict(self, X):
-        return self.call(X)
-    
+        return self.call(X)    
     
 class MeanBaseline():
     def __init__(self, Y, name="mean_baseline"):
@@ -328,8 +315,7 @@ class MeanBaseline():
         return Y_pred
     
     def predict(self, X):
-        return self.call(X)
-    
+        return self.call(X) 
 
 class PairBaseline():
     def __init__(self, name="pair_baseline"):

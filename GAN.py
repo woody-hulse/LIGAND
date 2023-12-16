@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
-
+import os
+import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set_theme(style="darkgrid")
@@ -35,7 +36,6 @@ def generator_loss(pred, real, pred_output, mismatch_output):
     # BC(0, D(G(d_t), d_rand))
     disc_mismatch = tf.keras.losses.BinaryCrossentropy()(tf.zeros_like(pred_output), mismatch_output)
     return gen * lambda1 + disc * lambda2 + disc_mismatch * lambda3
-
 
 class GAN(tf.keras.Model):
     def __init__(self, input_shape, output_shape, generator, discriminator, name='gan_parent', **kwargs):
@@ -267,13 +267,13 @@ class Trans_GAN2(GAN):
                          ActorTransformer1(input_shape, output_shape, num_transformers=8, hidden_size=64),
                          CriticTransformer1(output_shape, num_transformers=3, hidden_size=32),
                          name=name, **kwargs)
-        
+     
 class Trans_GAN3(GAN):
     def __init__(self, input_shape, output_shape, name='trans_gan3', **kwargs):
         super().__init__(input_shape, output_shape, 
                          ActorTransformer1(input_shape, output_shape, num_transformers=8, hidden_size=64),
                          CriticTransformer1(output_shape, num_transformers=4, hidden_size=64),
-                         name=name, **kwargs)
+                         name=name, **kwargs)       
         
 class Trans_GAN4(GAN):
     def __init__(self, input_shape, output_shape, name='trans_gan4', **kwargs):

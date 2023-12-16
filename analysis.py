@@ -1,13 +1,13 @@
-from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, roc_curve, auc
-from sklearn import metrics
+from sklearn.metrics import roc_curve, auc
 from scipy import interp
 import os
-
+import copy
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set_theme(style="darkgrid")
 import numpy as np
+import tensorflow as tf
 
 from utils import *
 import preprocessing
@@ -15,6 +15,8 @@ from tqdm import tqdm
 
 
 def generate_candidate_grna(gan, rna, chromosome, start, end, a=400, view_length=23, num_seqs=4, plot=True):
+    debug_print(['generating candidate grna for', chromosome, start, ':', end])
+    
     chromosomes = [chromosome for _ in range(num_seqs)]
     starts = [start for _ in range(num_seqs)]
     ends = [end for _ in range(num_seqs)]
@@ -22,7 +24,8 @@ def generate_candidate_grna(gan, rna, chromosome, start, end, a=400, view_length
     if plot:
         fig, axis = plt.subplots(num_seqs, 1, figsize=(8, num_seqs * 2))
         axis[0].set_title('GRNA activity')
-        
+
+
     X = np.zeros((num_seqs, view_length, 8))
     seq = None
     for n in range(num_seqs):
@@ -52,17 +55,7 @@ def generate_candidate_grna(gan, rna, chromosome, start, end, a=400, view_length
     for grna in candidate_grna:
         debug_print(['     ', preprocessing.str_bases(grna)])
     
-    activity_test(
-        gan=gan, 
-        rnas=filtered_candidate_grna, 
-        chromosomes=chromosomes, 
-        starts=starts, 
-        ends=ends, 
-        a=a, 
-        view_length=view_length, 
-        plot=plot, 
-        num_seqs=filtered_candidate_grna.shape[0], 
-        test_rna=True)
+    activity_test(gan, filtered_candidate_grna, chromosomes, starts, ends, a, view_length, plot, filtered_candidate_grna.shape[0], True)
 
 def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, plot=True, num_seqs=None, test_rna=False):
     if not num_seqs: num_seqs = len(rnas)
@@ -77,7 +70,7 @@ def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, p
     skipped = 0
     skip = []
     
-    all_activity_scores = []
+    all_activity_scores = np.zeros(2 * a - 1)
     
     X_gen = np.zeros((len(rnas), view_length, 8))
     X = np.zeros((len(rnas), view_length + 2 * a, 8))
@@ -87,7 +80,6 @@ def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, p
             seq = preprocessing.fetch_genomic_sequence(chromosomes[n], starts[n] - a, ends[n] + a).lower()
             ohe_seq = np.concatenate([preprocessing.ohe_base(base) for base in seq], axis=0)
             epigenomic_signals = preprocessing.fetch_epigenomic_signals(chromosomes[n], starts[n] - a, ends[n] + a)
-            debug_print([ohe_seq.shape, epigenomic_signals.shape])
             epigenomic_seq = np.concatenate([ohe_seq, epigenomic_signals], axis=1)
             if np.isnan(epigenomic_seq).any():
                 skip.append(n)
@@ -133,7 +125,7 @@ def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, p
                 pass # finish
         activity_scores = np.array(activity_scores)
         moving_averages = activity_scores[23:]# moving_average(activity_scores, 100)
-        all_activity_scores.append(activity_scores)
+        all_activity_scores += np.array(activity_scores)
             
         if plot:
             x = np.arange(start + view_length, end - view_length + 4)[:len(moving_averages)]
@@ -148,7 +140,58 @@ def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, p
         plt.ylabel('predicted activity')
         plt.show()
     
-    return all_activity_scores
+    return all_activity_scores / axis_index
+
+def candidate_grna_range(gan, chromosome, start, end, a=400, view_length=23, num_seqs=5, plot=True):
+    
+    length = 2 * a + end - start - view_length
+    
+    debug_print(['generating best grna candidates for chromosome', chromosome, start, ':', end])
+    
+    seq = preprocessing.fetch_genomic_sequence(chromosome, start - a, end + a).lower()
+    ohe_seq = np.concatenate([preprocessing.ohe_base(base) for base in seq], axis=0)
+    epigenomic_signals = preprocessing.fetch_epigenomic_signals(chromosome, start - a, end + a)
+    epigenomic_seq = np.concatenate([ohe_seq, epigenomic_signals], axis=1)
+    X = epigenomic_seq
+    
+    best_seqs = [(0, np.inf, '', np.zeros(length)) for _ in range(num_seqs)]
+    for i in tqdm(range(length)):
+        X_gen = X[i:i + view_length]
+        Y_gen = gan.generate(np.expand_dims(X_gen, axis=0))
+        activity_scores = np.zeros(length)
+        target_activity = np.zeros(length)
+        target_activity[i] = 1
+        
+        for j in range(length):
+            X_disc = X[j:j + view_length]
+            activity_score = gan.discriminator([
+                np.expand_dims(X_disc, axis=0),
+                Y_gen
+            ])
+            activity_scores[j] = activity_score
+        
+        loss = tf.keras.losses.categorical_crossentropy(target_activity, activity_scores)
+        
+        Y_gen_ohe = tf.one_hot(tf.math.argmax(Y_gen, axis=2), 4, axis=2)[0]
+        tup = (i, loss, preprocessing.str_bases(Y_gen_ohe), activity_scores)
+        
+        for k in range(num_seqs):
+            if best_seqs[k][1] > tup[1]:
+                best_seqs[k], tup = tup, best_seqs[k]
+    
+    
+    if plot:
+        fig, axis = plt.subplots(num_seqs, 1, figsize=(8, num_seqs * 2))
+        axis[0].set_title('Best gRNA found for ' + chromosome + ' ' + str(start) + ':' + str(end))
+        for i in range(num_seqs):
+            x = np.arange(length)
+            axis[i].plot(x, best_seqs[i][3], label=best_seqs[i][2])
+            axis[i].legend()
+        plt.xlabel('genomic position')
+        plt.ylabel('predicted activity')
+        plt.show()
+    
+    return best_seqs
 
 def perturbation_analysis(gan, rnas, chromosomes, starts, ends, base, a=400, view_length=23, num_seqs=None):
     if not num_seqs: num_seqs = len(rnas)
@@ -228,46 +271,74 @@ def perturbation_analysis(gan, rnas, chromosomes, starts, ends, base, a=400, vie
         plt.yticks(np.arange(0, len(rna)))
         plt.grid(axis='y', linestyle='solid', alpha=0.7)
         plt.title('Perturbation Analysis Heatmap')
-        plt.show()
+        plt.show()  
+
+def perturbation_map(gan, rnas, chromosomes, starts, ends, view_length=23, num_seqs=4):
+    X = np.zeros((len(rnas), view_length, 8))
+    
+    skipped = 0
+    skip = []
+    
+    for n in range(num_seqs):
+        try:
+            seq = preprocessing.fetch_genomic_sequence(chromosomes[n], starts[n], ends[n]).lower()
+            ohe_seq = np.concatenate([preprocessing.ohe_base(base) for base in seq], axis=0)
+            epigenomic_signals = preprocessing.fetch_epigenomic_signals(chromosomes[n], starts[n], ends[n])
+            epigenomic_seq = np.concatenate([ohe_seq, epigenomic_signals], axis=1)
+            if np.isnan(epigenomic_seq).any():
+                skip.append(n)
+                continue
+                
+            X[n] = epigenomic_seq
+        except Exception as e:
+            skip.append(n)
+            continue
+            
+    pred_Yi = gan.generator(X)
+    pred = np.argmax(pred_Yi, axis=2)
+    real = np.argmax(rnas, axis=2)
+    real_Yi = gan.get_real_Yi(pred_Yi, pred, real)
+    
+    for n, (rna, chromosome, start, end) in enumerate(zip(rnas, chromosomes, starts, ends)):
+        if n >= num_seqs + skipped: continue
+        if n in skip:
+            skipped += 1
+            continue
         
-    
-
-'''
-def perturbation_analysis(gan, chromosome, start, end, bind_site, rna, perturbation_length, base='N'):
-    RNA = rna
-    heatmap = np.zeros((len(RNA) - perturbation_length + 1, 777))
-    _,original = activity_test(gan=gan,rna=RNA,chromosome=chromosome,start=start,end=end,bind_site=bind_site, plot=False)
-    middle = len(original)//2
-    orig_target_mean = np.mean(original[middle-20:middle+50])
-    perturbed_target_means = np.zeros(len(RNA) - perturbation_length + 1)
-    
-    for i in range(0, len(RNA)-perturbation_length + 1):
-        perturbed_grna = list(RNA)
-        perturbed_grna[i:i + perturbation_length] = base * perturbation_length
-        perturbed_grna = ''.join(perturbed_grna)
-        _, averages = activity_test(gan=gan,rna=perturbed_grna,chromosome=chromosome,start=start,end=end,bind_site=bind_site, plot=False)
-        heatmap[i,:] = averages
-        perturbed_target_means[i] = (abs(np.mean(averages[middle-20:middle+50]) - orig_target_mean)/orig_target_mean)
-    
-    plt.figure(1)
-    x = np.arange(start + 23, end - 23 + 1)
-    plt.imshow(heatmap, cmap='inferno', origin='lower', aspect='auto', extent=(min(x), max(x), 0, len(RNA)- perturbation_length + 1))
-    plt.colorbar(label='Activity Score')
-    plt.xlabel('DNA Position')
-    plt.ylabel(f'gRNA Perturbation Index (Length {perturbation_length}, Base {base})')
-    plt.yticks(np.arange(0, len(RNA)-perturbation_length + 1))
-    plt.grid(axis='y', linestyle='solid', alpha=0.7)
-    plt.title('Perturbation Analysis Heatmap')
-    plt.show()
-
-    plt.figure(2)
-    x = np.arange(0, len(RNA)- perturbation_length + 1)
-    plt.bar(x, perturbed_target_means, color='maroon', width=.4)
-    plt.xlabel(f'gRNA Perturbation Index (Length {perturbation_length}, Base {base})')
-    plt.ylabel('Percent Difference In Activity Score at Target vs Original')
-    plt.title('Perturbation Index vs Effect on Target Bind Activity Percent Change')
-    plt.show()
-'''
+        heatmap = np.zeros((len(rna), 4))
+        
+        base_activity_score = gan.discriminator([
+                        np.expand_dims(X[n], axis=0), 
+                        np.expand_dims(real_Yi[n], axis=0)
+                    ])
+        
+        Yn = real_Yi[n]
+        for i in range(len(rna)):
+            argmax = np.argmax(Yn[i])
+            for j in range(4):
+                if j == argmax:
+                    heatmap[i, j] = 0
+                    continue
+                else:
+                    perturbed_Yn = copy.deepcopy(Yn)
+                    perturbed_Yn[i, j], perturbed_Yn[i, argmax] = perturbed_Yn[i, argmax], perturbed_Yn[i, j]
+                    perturbed_activity_score = gan.discriminator([
+                        np.expand_dims(X[n], axis=0), 
+                        np.expand_dims(perturbed_Yn, axis=0)
+                    ])
+                    heatmap[i, j] = perturbed_activity_score - base_activity_score
+        
+        
+        plt.figure(1)
+        plt.imshow(heatmap, cmap='inferno', origin='lower', aspect='auto', extent=(0, 20, 0, 4))
+        plt.colorbar(label='Activity Score')
+        plt.xlabel('Replacement Base')
+        plt.ylabel(f'gRNA Perturbation Index')
+        plt.yticks(np.arange(0, 20))
+        plt.xticks([0, 1, 2, 3],['a', 'g', 'c', 't'])
+        plt.grid(axis='y', linestyle='solid', alpha=0.7)
+        plt.title('Perturbation Analysis Heatmap')
+        plt.show()
 
 def save_roc(x, y_true, model, file = 'models/roc.csv'):
     y_pred = model.predict(x)
@@ -392,7 +463,6 @@ def graph_metrics(files):
     plt.title('Discriminator Accuracy')
     plt.legend(loc="lower right")
     plt.show()
-
 
 def deviation_from_complement_dna(model, dna_sequences):
     deviations = np.zeros((len(dna_sequences), 20, 4))
