@@ -123,14 +123,58 @@ def main(load_data=False):
               print_interval=1, summary=True, plot=False,
               save=False, load=True)
 
-    save_roc(seqs_test, grna_test, gan.generator, file=f'models/{gan.name}/roc.csv')
-
-
-    validate_against_efficacies(gan)
-
+    # save_roc(seqs_test, grna_test, gan.generator, file=f'models/{gan.name}/roc.csv')
+        
     ## Analysis
     rnas, chromosomes, starts, ends = preprocessing.get_activity_tests(df, 512, load_data)
+
+    # perturbation_map(
+    #     gan=gan,
+    #     rnas=rnas,
+    #     chromosomes=chromosomes,
+    #     starts=starts,
+    #     ends=ends,
+    #     view_length=23,
+    #     num_seqs=4)
+
+    
+    activity_test(
+            gan=gan,
+            rnas=rnas,
+            chromosomes=chromosomes,
+            starts=starts,
+            ends=ends,
+            a=50,
+            num_seqs=2)
+    
+    diffs = []
+    for base in ['a', 'g', 'c', 't']:
+        diff = perturbation_analysis(
+            gan=gan,
+            rnas=rnas,
+            chromosomes=chromosomes,
+            starts=starts,
+            ends=ends,
+            base=base,
+            num_seqs=1,
+            a=50
+        )[0]
+        diffs.append(diff)
+    
+    x = np.arange(0,4)
+    diffs = np.array(diffs).T
+    plt.imshow(diffs, cmap='inferno', origin='lower', aspect='auto', extent=(0, 4, 0, 20))
+    plt.colorbar(label='Percent Difference')
+    plt.xlabel('Replacement Base')
+    plt.ylabel(f'gRNA Perturbation Index')
+    plt.yticks(np.arange(0, 20))
+    plt.xticks(x,['a', 'g', 'c', 't'])
+    plt.grid(axis='y', linestyle='solid', alpha=0.7)
+    plt.title(f'Percent Difference in Activity at Target for Replacement Bases')
+    plt.show()
     '''
+    validate_against_efficacies(gan)
+
     activity_scores_avg = activity_test(
         gan=gan,
         rnas=rnas,
