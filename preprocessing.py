@@ -262,7 +262,6 @@ def populate_efficacy_map():
                 key_tuple = (sgRNA, chromosome, start, end)
                 sgRNA_map[key_tuple] = efficacy
                 EFFICACY_MAP[key_tuple] = efficacy
-    print(EFFICACY_MAP)
     return EFFICACY_MAP
 
 def get_efficacy(sgRNA, chromosome, start, end):

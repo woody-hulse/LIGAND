@@ -57,7 +57,7 @@ def generate_candidate_grna(gan, rna, chromosome, start, end, a=400, view_length
     
     activity_test(gan, filtered_candidate_grna, chromosomes, starts, ends, a, view_length, plot, filtered_candidate_grna.shape[0], True)
 
-def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, plot=True, num_seqs=None, test_rna=False, return_sep=False):
+def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, plot=True, num_seqs=None, test_rna=False, return_sep=False, experimental_efficacies=None):
     if not num_seqs: num_seqs = len(rnas)
     
     def moving_average(x, w):
@@ -130,7 +130,10 @@ def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, p
         if plot:
             x = np.arange(start + view_length, end - view_length + 4)[:len(moving_averages)]
             axis[axis_index].plot(x, moving_averages, label=preprocessing.str_bases(rna))
-            axis[axis_index].axvline(x=bind_site, color='orange', linestyle='dotted', label='bind site')
+            if experimental_efficacies is None:
+                axis[axis_index].axvline(x=bind_site, color='orange', linestyle='dotted', label='bind site')
+            else:
+                axis[axis_index].scatter(x=bind_site, y=experimental_efficacies[n], color='red', label='experimental efficacy')
             axis[axis_index].legend()
         
         axis_index += 1
@@ -673,6 +676,30 @@ def validate_against_efficacies(gan, plot = True):
         plt.show()
 
     return efficacies
+
+def validation_activity_map(gan, num_seqs=4):
+    preprocessing.populate_efficacy_map()
+
+    rnas = []
+    chromosomes = []
+    starts = []
+    ends = []
+    efficacies = []
+    for ((sgRNA, chromosome, start, end), efficacy) in preprocessing.EFFICACY_MAP.items():
+        if len(rnas) >= num_seqs:
+            break
+        rnas.append(ohe_bases(sgRNA)[:-3])
+        chromosomes.append(chromosome)
+        starts.append(start)
+        ends.append(end)
+        efficacies.append(efficacy)
+    
+    rnas = np.array(rnas).reshape((len(rnas), 20, 4))
+
+    print(rnas.shape)
+
+    activity_test(gan, rnas, chromosomes, starts, ends, experimental_efficacies=efficacies, num_seqs=num_seqs)
+
 
 if __name__ == '__main__':
     os.system('clear')

@@ -128,7 +128,10 @@ def main(load_data=False):
     ## Analysis
     rnas, chromosomes, starts, ends = preprocessing.get_activity_tests(df, 512, load_data)
 
-    # validate_against_efficacies(gan)
+    print(rnas.shape)
+
+    validation_activity_map(gan)
+    validate_against_efficacies(gan)
     
     activity_test(
             gan=gan,
