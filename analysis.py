@@ -195,7 +195,7 @@ def candidate_grna_range(gan, chromosome, start, end, a=400, view_length=23, num
     
     return best_seqs
 
-def perturbation_analysis(gan, rnas, chromosomes, starts, ends, base, a=400, view_length=23, num_seqs=None):
+def perturbation_analysis(gan, rnas, chromosomes, starts, ends, base, a=400, view_length=23, num_seqs=None, plot=True):
     if not num_seqs: num_seqs = len(rnas)
     
     skipped = 0
@@ -242,6 +242,7 @@ def perturbation_analysis(gan, rnas, chromosomes, starts, ends, base, a=400, vie
     heatmap = np.zeros((len(rnas), a * 2 - view_length))
     
     for n, (rna, chromosome, start, end) in enumerate(zip(rnas, chromosomes, starts, ends)):
+        debug_print(['running perturbation analysis on', preprocessing.str_bases(rna)])
         if n >= num_seqs + skipped: continue
         if n in skip:
             skipped += 1
@@ -270,31 +271,32 @@ def perturbation_analysis(gan, rnas, chromosomes, starts, ends, base, a=400, vie
         cumulative_percent_diff.append(percent_diff)
         axis_index += 1    
 
-        plt.figure(figsize=(20, 7))
-        plt.subplot(1, 2, 1)
-        x = np.arange(start + 23, end - 23 + 1)
-        plt.imshow(heatmap, cmap='inferno', origin='lower', aspect='auto', extent=(min(x), max(x), 0, len(rna)))
-        plt.colorbar(label='Activity Score')
-        plt.xlabel('DNA Position')
-        plt.ylabel(f'gRNA Perturbation Index')
-        plt.yticks(np.arange(0, len(rna)))
-        plt.grid(axis='y', linestyle='solid', alpha=0.7)
-        str_rna = preprocessing.str_bases(rna)
-        plt.title(f'Heatmap')
+        if plot:
 
-        plt.subplot(1, 2, 2)
-        x = np.arange(0, len(rna))
-        plt.bar(x, percent_diff, color='maroon', width=.4)
-        plt.axhline(0, color='black', linewidth=1, linestyle='solid')
-        plt.xlabel(f'gRNA Perturbation Index')
-        plt.ylabel('Percent Difference In Activity Score at Target vs Original')
-        plt.title(f'Percent Difference')
-        plt.xticks(x) 
+            plt.figure(figsize=(20, 7))
+            plt.subplot(1, 2, 1)
+            x = np.arange(start + 23, end - 23 + 1)
+            plt.imshow(heatmap, cmap='inferno', origin='lower', aspect='auto', extent=(min(x), max(x), 0, len(rna)))
+            plt.colorbar(label='Activity Score')
+            plt.xlabel('DNA Position')
+            plt.ylabel(f'gRNA Perturbation Index')
+            plt.yticks(np.arange(0, len(rna)))
+            plt.grid(axis='y', linestyle='solid', alpha=0.7)
+            str_rna = preprocessing.str_bases(rna)
+            plt.title(f'Heatmap')
 
-        plt.suptitle(f'Perturbation Analysis of {str_rna} with base {base} and length {1}')
-        plt.show()
+            plt.subplot(1, 2, 2)
+            x = np.arange(0, len(rna))
+            plt.bar(x, percent_diff, color='maroon', width=.4)
+            plt.axhline(0, color='black', linewidth=1, linestyle='solid')
+            plt.xlabel(f'gRNA Perturbation Index')
+            plt.ylabel('Percent Difference In Activity Score at Target vs Original')
+            plt.title(f'Percent Difference')
+            plt.xticks(x) 
+
+            plt.suptitle(f'Perturbation Analysis of {str_rna} with base {base} and length {1}')
+            plt.show()
     
-    print(cumulative_percent_diff)
     return cumulative_percent_diff
 
 def perturbation_map(gan, rnas, chromosomes, starts, ends, view_length=23, num_seqs=4):

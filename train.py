@@ -128,10 +128,8 @@ def main(load_data=False):
     ## Analysis
     rnas, chromosomes, starts, ends = preprocessing.get_activity_tests(df, 512, load_data)
 
-    validate_against_efficacies(gan)
-
+    # validate_against_efficacies(gan)
     
-    '''
     activity_test(
             gan=gan,
             rnas=rnas,
@@ -150,14 +148,16 @@ def main(load_data=False):
             starts=starts,
             ends=ends,
             base=base,
-            num_seqs=1,
-            a=50
-        )[0]
+            num_seqs=30,
+            a=50,
+            plot=False
+        )
+        diff = np.array(diff).mean(axis=0)
         diffs.append(diff)
     
     x = np.arange(0,4)
     diffs = np.array(diffs).T
-    plt.imshow(diffs, cmap='BuPu', origin='lower', aspect='auto', extent=(0, 4, 0, 20))
+    plt.imshow(diffs, cmap='Blues', origin='lower', aspect='auto', extent=(0, 4, 0, 20))
     plt.colorbar(label='Percent Difference')
     plt.xlabel('Replacement Base')
     plt.ylabel(f'gRNA Perturbation Index')
@@ -166,6 +166,8 @@ def main(load_data=False):
     plt.grid(axis='y', linestyle='solid', alpha=0.7)
     plt.title(f'Percent Difference in Activity at Target for Replacement Bases')
     plt.show()
+
+    '''
 
     activity_scores_avg = activity_test(
         gan=gan,
