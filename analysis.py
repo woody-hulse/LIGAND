@@ -57,7 +57,7 @@ def generate_candidate_grna(gan, rna, chromosome, start, end, a=400, view_length
     
     activity_test(gan, filtered_candidate_grna, chromosomes, starts, ends, a, view_length, plot, filtered_candidate_grna.shape[0], True)
 
-def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, plot=True, num_seqs=None, test_rna=False):
+def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, plot=True, num_seqs=None, test_rna=False, return_sep=False):
     if not num_seqs: num_seqs = len(rnas)
     
     def moving_average(x, w):
@@ -71,7 +71,7 @@ def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, p
     skip = []
     
     all_activity_scores = np.zeros(2 * a - 1)
-    
+    sep_activity_scores = []
     X_gen = np.zeros((len(rnas), view_length, 8))
     X = np.zeros((len(rnas), view_length + 2 * a, 8))
     
@@ -126,7 +126,7 @@ def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, p
         activity_scores = np.array(activity_scores)
         moving_averages = activity_scores[23:]# moving_average(activity_scores, 100)
         all_activity_scores += np.array(activity_scores)
-            
+        sep_activity_scores.append(activity_scores)
         if plot:
             x = np.arange(start + view_length, end - view_length + 4)[:len(moving_averages)]
             axis[axis_index].plot(x, moving_averages, label=preprocessing.str_bases(rna))
@@ -140,6 +140,8 @@ def activity_test(gan, rnas, chromosomes, starts, ends, a=400, view_length=23, p
         plt.ylabel('predicted activity')
         plt.show()
     
+    if return_sep:
+        return sep_activity_scores
     return all_activity_scores / axis_index
 
 def candidate_grna_range(gan, chromosome, start, end, a=400, view_length=23, num_seqs=5, plot=True):
@@ -233,7 +235,9 @@ def perturbation_analysis(gan, rnas, chromosomes, starts, ends, base, a=400, vie
         a=a,
         view_length=view_length,
         plot=False,
-        num_seqs=num_seqs)
+        num_seqs=num_seqs,
+        return_sep=True
+        )
     
     heatmap = np.zeros((len(rnas), a * 2 - view_length))
     
@@ -262,7 +266,7 @@ def perturbation_analysis(gan, rnas, chromosomes, starts, ends, base, a=400, vie
                     ])
                     perturbed_activity_scores.append(activity_score.numpy()[0][0])
             heatmap[i] = np.array(perturbed_activity_scores)[view_length - 1:]
-            percent_diff.append(((heatmap[i][a-view_length+1] - original[n])/original[n])*100)
+            percent_diff.append(((heatmap[i][a-view_length+1] - original[n][a])/original[n][a])*100)
         cumulative_percent_diff.append(percent_diff)
         axis_index += 1    
 
