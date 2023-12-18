@@ -685,7 +685,11 @@ def validation_activity_map(gan, num_seqs=4):
     starts = []
     ends = []
     efficacies = []
-    for ((sgRNA, chromosome, start, end), efficacy) in preprocessing.EFFICACY_MAP.items():
+
+    items = preprocessing.EFFICACY_MAP.items()
+    shuffled_items = list(items)
+    np.random.shuffle(shuffled_items)
+    for ((sgRNA, chromosome, start, end), efficacy) in shuffled_items: 
         if len(rnas) >= num_seqs:
             break
         rnas.append(ohe_bases(sgRNA)[:-3])
@@ -695,8 +699,6 @@ def validation_activity_map(gan, num_seqs=4):
         efficacies.append(efficacy)
     
     rnas = np.array(rnas).reshape((len(rnas), 20, 4))
-
-    print(rnas.shape)
 
     activity_test(gan, rnas, chromosomes, starts, ends, experimental_efficacies=efficacies, num_seqs=num_seqs)
 

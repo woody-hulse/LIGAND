@@ -110,7 +110,7 @@ def main(load_data=False):
 
     ## Models
     # Change GAN below. GANS can be found in GAN.py. Models can be found in models.py.
-    gan = Trans_Conv_GAN2(seqs.shape[1:], grna.shape[1:])
+    gan = Trans_GAN4(seqs.shape[1:], grna.shape[1:])
 
     train([gan.generator], seqs, grna, epochs=0, graph=False, summary=False)
     train([gan.discriminator], [seqs, grna], np.ones(len(seqs)), epochs=0, graph=False, summary=False)
@@ -128,9 +128,9 @@ def main(load_data=False):
     ## Analysis
     rnas, chromosomes, starts, ends = preprocessing.get_activity_tests(df, 512, load_data)
 
-    print(rnas.shape)
+    validation_activity_map(gan, num_seqs=10)
 
-    validation_activity_map(gan)
+    '''
     validate_against_efficacies(gan)
     
     activity_test(
@@ -169,8 +169,6 @@ def main(load_data=False):
     plt.grid(axis='y', linestyle='solid', alpha=0.7)
     plt.title(f'Percent Difference in Activity at Target for Replacement Bases')
     plt.show()
-
-    '''
 
     activity_scores_avg = activity_test(
         gan=gan,
