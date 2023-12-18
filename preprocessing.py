@@ -249,22 +249,20 @@ def populate_efficacy_map():
                     with open('data/offtar_on.csv', 'r') as offtar_on:
                         matching_row = next((r for r in csv.DictReader(offtar_on) if r['Target ID'] == target_id), None)
                         if matching_row:
-                            chromosome = matching_row['Chromosome'][3:]
-                            start = int(matching_row['Start'])
-                            end = int(matching_row['End'])
-                    sgRNA = row['OT']
+                            sgRNA = matching_row['Target sgRNA']
                     efficacy = float(row['Cleavage Frequency'])
                 else:
                     sgRNA = row['sgRNA']
                     efficacy = float(row['Normalized efficacy'])
             
-                if (chromosome == 'X'): chromosome = '22'
+                if (chromosome == 'X' or chromosome == 'Y'): continue
                 if (len(chromosome) == 1): chromosome = '0' + chromosome
 
                 gRNA.append(sgRNA)
                 key_tuple = (sgRNA, chromosome, start, end)
                 sgRNA_map[key_tuple] = efficacy
                 EFFICACY_MAP[key_tuple] = efficacy
+    print(EFFICACY_MAP)
     return EFFICACY_MAP
 
 def get_efficacy(sgRNA, chromosome, start, end):

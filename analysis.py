@@ -348,7 +348,9 @@ def perturbation_map(gan, rnas, chromosomes, starts, ends, view_length=23, num_s
                     ])
                     heatmap[i, j] = perturbed_activity_score - base_activity_score
         
-        
+        # inverse heatmap axis
+        heatmap = np.flip(heatmap, axis=1)
+
         plt.figure(1)
         plt.imshow(heatmap, cmap='inferno', origin='lower', aspect='auto', extent=(0, 20, 0, 4))
         plt.colorbar(label='Activity Score')
@@ -670,21 +672,19 @@ if __name__ == '__main__':
     os.system('clear')
 
     graph_roc_curves([
-        # 'models/mlp_gan/roc.csv',
+        'models/mlp_gan/roc.csv',
         'models/conv_gan/roc.csv',
-        'models/trans_conv_gan/roc.csv',
         'models/trans_gan/roc.csv',
         'models/trans_conv_gan2/roc.csv',
-        'models/trans_gan3/roc.csv'
+        'models/trans_gan4/roc.csv'
     ])
 
     graph_metrics([
-        # 'models/mlp_gan/metrics.csv',
+       'models/mlp_gan/metrics.csv',
         'models/conv_gan/metrics.csv',
-        'models/trans_conv_gan/metrics.csv',
         'models/trans_gan/metrics.csv',
         'models/trans_conv_gan2/metrics.csv',
-        'models/trans_gan3/metrics.csv'
+        'models/trans_gan4/metrics.csv'
     ])
 
     
